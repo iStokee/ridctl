@@ -6,14 +6,24 @@
 function Get-RiDAggregateStatus {
     [CmdletBinding()] param()
     $isVm        = Get-RiDHostGuestInfo
-    $virtReady   = Get-RiDVirtSupport
+    $virtInfo    = Get-RiDVirtSupport
     $toolsOk     = Get-RiDVmwareToolsStatus
     # Additional checks such as shared folder and ISO availability
     # would be added here in future milestones.
-    
+
+    # Determine virtualization readiness only for hosts; inside a VM we set null.
+    $vtReady = $null
+    if (-not $isVm) {
+        if ($null -ne $virtInfo -and $virtInfo.VTEnabled) {
+            $vtReady = $true
+        } else {
+            $vtReady = $false
+        }
+    }
+
     return [pscustomobject]@{
         IsVM                = $isVm
-        VTReady             = $virtReady
+        VTReady             = $vtReady
         VmwareToolsInstalled= $toolsOk
         SharedFolderOk      = $false
         IsoAvailable        = $false

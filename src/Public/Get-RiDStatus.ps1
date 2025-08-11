@@ -4,33 +4,15 @@ function Get-RiDStatus {
         Collects a snapshot of the current RiD environment.
 
     .DESCRIPTION
-        Returns a custom object containing high-level status flags used by
-        the Show-RiDMenu command to colour status cards and determine
-        available actions.  At this stage all properties are stubbed
-        values.  Future implementations will call helper functions to
-        detect virtualization readiness, VMware Tools status, shared
-        folder health and sync state.
+        Invokes helper functions in the private module to aggregate
+        status information for the host or guest.  Used by the
+        Show-RiDMenu function to display status cards.  As more
+        features are implemented additional fields will be populated.
 
     .EXAMPLE
-        PS> Get-RiDStatus
-
-        IsVM            : False
-        VTReady         : False
-        VmwareToolsInstalled : False
-        SharedFolderOk  : False
-        IsoAvailable    : False
-        SyncNeeded      : False
+        PS> Get-RiDStatus | Format-List
     #>
     [CmdletBinding()] param()
-    
-    # Placeholder status values; real detection is implemented in
-    # subsequent milestones.
-    [pscustomobject]@{
-        IsVM                = $false
-        VTReady             = $false
-        VmwareToolsInstalled= $false
-        SharedFolderOk      = $false
-        IsoAvailable        = $false
-        SyncNeeded          = $false
-    }
+
+    return Get-RiDAggregateStatus
 }
