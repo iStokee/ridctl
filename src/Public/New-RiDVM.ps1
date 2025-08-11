@@ -49,5 +49,40 @@ function New-RiDVM {
         [Parameter()] [ValidateSet('auto','vmcli','vmrest','vmrun')][string]$Method = 'auto'
     )
 
-    Write-Warning 'New-RiDVM is not yet implemented. This command currently performs no actions.'
+    # Determine available VMware command line tools
+    $tools = Get-RiDVmTools
+    $selectedMethod = $Method
+    if ($Method -eq 'auto') {
+        if ($tools.VmCliPath)      { $selectedMethod = 'vmcli' }
+        elseif ($tools.VmrunPath)  { $selectedMethod = 'vmrun' }
+        else                       { $selectedMethod = 'none' }
+    }
+    switch ($selectedMethod) {
+        'vmcli' {
+            if (-not $tools.VmCliPath) {
+                Write-Warning 'vmcli was selected but could not be found on this system.'
+                return
+            }
+            New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath
+            Write-Host 'VM creation via vmcli is currently a dry‑run. No VM was actually created.' -ForegroundColor Yellow
+        }
+        'vmrun' {
+            if (-not $tools.VmrunPath) {
+                Write-Warning 'vmrun was selected but could not be found on this system.'
+                return
+            }
+            # Prompt user for template and snapshot if not supplied via parameters
+            $template = Read-Host 'Enter the path to the template VMX file'
+            $snap     = Read-Host 'Enter the snapshot name in the template to clone from'
+            $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
+            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $template -SnapshotName $snap -DestinationVmx $destVmx
+            Write-Host 'VM creation via vmrun clone is currently a dry‑run. No VM was actually created.' -ForegroundColor Yellow
+        }
+        'none' {
+            Write-Warning 'No supported VMware command line tools were detected. Please install vmcli or vmrun.'
+        }
+        default {
+            Write-Warning "Method '$Method' is not supported in this scaffold."
+        }
+    }
 }

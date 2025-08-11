@@ -12,3 +12,22 @@ function Invoke-RiDVmrun {
     Write-Warning 'Invoke-RiDVmrun is not yet implemented.'
     return $null
 }
+
+function Clone-RiDVmrunTemplate {
+    <#
+    .SYNOPSIS
+        Clones a VM from a template using vmrun.
+
+    .DESCRIPTION
+        Placeholder for clone operations using the vmrun command.  In
+        the scaffold this simply prints the intended vmrun command.
+    #>
+    [CmdletBinding()] param(
+        [Parameter(Mandatory=$true)] [string]$VmrunPath,
+        [Parameter(Mandatory=$true)] [string]$TemplateVmx,
+        [Parameter(Mandatory=$true)] [string]$SnapshotName,
+        [Parameter(Mandatory=$true)] [string]$DestinationVmx
+    )
+    Write-Host "[vmrun] clone \"$TemplateVmx\" \"$DestinationVmx\" full -snapshot=$SnapshotName" -ForegroundColor DarkCyan
+    # TODO: Execute vmrun clone command and handle any errors.
+}
