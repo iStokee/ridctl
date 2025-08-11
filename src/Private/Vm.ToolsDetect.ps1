@@ -6,10 +6,34 @@
 #>
 function Get-RiDVmTools {
     [CmdletBinding()] param()
-    # TODO: Probe for vmcli, vmrun and vmrest executables and return their paths
+    # Attempt to locate vmcli.exe and vmrun.exe using Get-Command.  If not
+    # found, fall back to typical installation directories.  vmrest is
+    # a Windows service rather than a standalone binary and therefore
+    # reported as `$null` here.
+    $vmcli = $null
+    $vmrun = $null
+    try {
+        $vmcliCmd = Get-Command -Name vmcli.exe -ErrorAction SilentlyContinue
+        if ($vmcliCmd) { $vmcli = $vmcliCmd.Source }
+    } catch {}
+    try {
+        $vmrunCmd = Get-Command -Name vmrun.exe -ErrorAction SilentlyContinue
+        if ($vmrunCmd) { $vmrun = $vmrunCmd.Source }
+    } catch {}
+    # Fallback search for vmrun in default installation directories if not found
+    if (-not $vmrun) {
+        $possible = @(
+            'C:\Program Files\VMware\VMware Workstation\vmrun.exe',
+            'C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe'
+        )
+        foreach ($p in $possible) {
+            if (Test-Path -Path $p) { $vmrun = $p; break }
+        }
+    }
     return [pscustomobject]@{
-        VmCliPath  = $null
-        VmrunPath  = $null
+        VmCliPath  = $vmcli
+        VmrunPath  = $vmrun
         VmrestPath = $null
     }
+}
 }
