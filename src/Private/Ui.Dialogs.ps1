@@ -5,9 +5,30 @@
     user‑friendly mechanisms.  Currently empty.
 #>
 function Show-RiDOpenFileDialog {
+    <#
+    .SYNOPSIS
+        Presents an open file dialog to the user.
+
+    .DESCRIPTION
+        Uses the System.Windows.Forms.OpenFileDialog class to allow
+        selection of a file.  The filter parameter accepts standard
+        filter strings such as "*.iso".  Returns the selected file
+        path or `$null` if the user cancels.
+    #>
     [CmdletBinding()] param(
-        [string]$Filter = '*.*'
+        [Parameter()] [string]$Filter = '*.*'
     )
-    # TODO: Implement OpenFileDialog using System.Windows.Forms or WPF.
+    try {
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Filter = $Filter
+        $dialog.Multiselect = $false
+        $result = $dialog.ShowDialog()
+        if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+            return $dialog.FileName
+        }
+    } catch {
+        Write-Warning "Open file dialog is not available in this environment: $_"
+    }
     return $null
 }
