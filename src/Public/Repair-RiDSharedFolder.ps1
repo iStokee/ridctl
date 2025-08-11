@@ -27,5 +27,11 @@ function Repair-RiDSharedFolder {
         [Parameter(Mandatory=$true)] [string]$ShareName,
         [Parameter(Mandatory=$true)] [string]$HostPath
     )
-    Write-Warning 'Repair-RiDSharedFolder is not yet implemented. This command currently performs no actions.'
+    # Locate vmrun executable
+    $tools = Get-RiDVmTools
+    if (-not $tools.VmrunPath) {
+        Write-Warning 'vmrun not found. Unable to configure shared folders.'
+        return
+    }
+    Enable-RiDSharedFolder -VmxPath $VmxPath -ShareName $ShareName -HostPath $HostPath -VmrunPath $tools.VmrunPath
 }
