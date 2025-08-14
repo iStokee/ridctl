@@ -57,6 +57,9 @@ function Test-RiDVirtualization {
     if ($virt.HyperVPresent) { $conflicts += 'Hyper‑V' }
     if ($virt.VirtualMachinePlatformPresent) { $conflicts += 'Virtual Machine Platform' }
     if ($virt.WindowsHypervisorPlatformPresent) { $conflicts += 'Windows Hypervisor Platform' }
+    if ($virt.WslPresent) { $conflicts += 'Windows Subsystem for Linux (WSL)' }
+    if ($virt.HypervisorLaunchTypeActive) { $conflicts += 'Hyper-V hypervisor (active)'}
+    if ($virt.MemoryIntegrityEnabled) { $conflicts += 'Core Isolation/Memory Integrity (HVCI)' }
     if ($conflicts.Count -gt 0) {
         Write-Host ('The following Windows features are enabled and may interfere with VMware Workstation: ' + ($conflicts -join ', ')) -ForegroundColor Yellow
         Write-Host 'Consider disabling these features if you encounter issues running virtual machines.' -ForegroundColor Yellow
@@ -74,6 +77,9 @@ function Test-RiDVirtualization {
         Write-Host ("  HyperV:      {0}" -f $virt.HyperVPresent)
         Write-Host ("  VMP:         {0}" -f $virt.VirtualMachinePlatformPresent)
         Write-Host ("  WHP:         {0}" -f $virt.WindowsHypervisorPlatformPresent)
+        Write-Host ("  WSL:         {0}" -f $virt.WslPresent)
+        Write-Host ("  HypervisorLaunchActive: {0}" -f $virt.HypervisorLaunchTypeActive)
+        Write-Host ("  HVCI (Memory Integrity): {0}" -f $virt.MemoryIntegrityEnabled)
     }
 
     return $exitCode

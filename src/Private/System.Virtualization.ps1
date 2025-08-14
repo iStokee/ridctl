@@ -29,6 +29,9 @@ function Get-RiDVirtSupport {
         HyperVPresent                 = $null
         VirtualMachinePlatformPresent = $null
         WindowsHypervisorPlatformPresent = $null
+        WslPresent                    = $null
+        HypervisorLaunchTypeActive    = $null
+        MemoryIntegrityEnabled        = $null
     }
 
     # Skip checks if running inside a guest
@@ -75,9 +78,31 @@ function Get-RiDVirtSupport {
             if ($null -ne $whp) {
                 $result.WindowsHypervisorPlatformPresent = ($whp.State -eq 'Enabled')
             }
+            $wsl = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue
+            if ($null -ne $wsl) {
+                $result.WslPresent = ($wsl.State -eq 'Enabled')
+            }
         }
     } catch {
         Write-Verbose "Failed to query optional features: $_"
     }
+
+    # bcdedit hypervisorlaunchtype (if 'Auto' or 'On', Hyper-V hypervisor is active)
+    try {
+        if (Get-Command -Name bcdedit.exe -ErrorAction SilentlyContinue) {
+            $out = bcdedit /enum | Out-String
+            if ($out -match 'hypervisorlaunchtype\s+([A-Za-z]+)') {
+                $val = $Matches[1]
+                $result.HypervisorLaunchTypeActive = ($val -notmatch 'Off')
+            }
+        }
+    } catch { Write-Verbose "Failed to query bcdedit: $_" }
+
+    # Memory integrity (HVCI)
+    try {
+        $regPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity'
+        $enabled = Get-ItemProperty -Path $regPath -Name Enabled -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Enabled -ErrorAction SilentlyContinue
+        if ($null -ne $enabled) { $result.MemoryIntegrityEnabled = ($enabled -eq 1) }
+    } catch { Write-Verbose "Failed to query HVCI: $_" }
     return $result
 }

@@ -25,7 +25,8 @@ function Repair-RiDSharedFolder {
     [CmdletBinding()] param(
         [Parameter(Mandatory=$true)] [string]$VmxPath,
         [Parameter(Mandatory=$true)] [string]$ShareName,
-        [Parameter(Mandatory=$true)] [string]$HostPath
+        [Parameter(Mandatory=$true)] [string]$HostPath,
+        [Parameter()] [switch]$Apply
     )
     # Locate vmrun executable
     $tools = Get-RiDVmTools
@@ -33,5 +34,5 @@ function Repair-RiDSharedFolder {
         Write-Warning 'vmrun not found. Unable to configure shared folders.'
         return
     }
-    Enable-RiDSharedFolder -VmxPath $VmxPath -ShareName $ShareName -HostPath $HostPath -VmrunPath $tools.VmrunPath
+    Enable-RiDSharedFolder -VmxPath $VmxPath -ShareName $ShareName -HostPath $HostPath -VmrunPath $tools.VmrunPath -Apply:$Apply
 }

@@ -15,7 +15,13 @@ function Checkpoint-RiDVM {
     #>
     [CmdletBinding()] param(
         [Parameter(Mandatory=$true)] [string]$VmxPath,
-        [Parameter(Mandatory=$true)] [string]$SnapshotName
+        [Parameter(Mandatory=$true)] [string]$SnapshotName,
+        [Parameter()] [switch]$Apply
     )
-    Write-Warning 'Checkpoint-RiDVM is not yet implemented. This command currently performs no actions.'
+    $tools = Get-RiDVmTools
+    if (-not $tools.VmrunPath) {
+        Write-Warning 'vmrun not found. Unable to create snapshot.'
+        return
+    }
+    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'snapshot' -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $SnapshotName) -Apply:$Apply
 }

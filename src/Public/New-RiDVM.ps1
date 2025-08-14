@@ -46,7 +46,10 @@ function New-RiDVM {
         [Parameter()] [int]$MemoryMB = 4096,
         [Parameter()] [int]$DiskGB = 60,
         [Parameter()] [string]$IsoPath,
-        [Parameter()] [ValidateSet('auto','vmcli','vmrest','vmrun')][string]$Method = 'auto'
+        [Parameter()] [ValidateSet('auto','vmcli','vmrest','vmrun')][string]$Method = 'auto',
+        [Parameter()] [string]$TemplateVmx,
+        [Parameter()] [string]$TemplateSnapshot,
+        [Parameter()] [switch]$Apply
     )
 
     # Determine available VMware command line tools
@@ -71,12 +74,44 @@ function New-RiDVM {
                 Write-Warning 'vmrun was selected but could not be found on this system.'
                 return
             }
-            # Prompt user for template and snapshot if not supplied via parameters
-            $template = Read-Host 'Enter the path to the template VMX file'
-            $snap     = Read-Host 'Enter the snapshot name in the template to clone from'
+            # Resolve template/snapshot from params, config or prompts
+            if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) {
+                $cfg = Get-RiDConfig
+                if (-not $TemplateVmx -and $cfg.Templates -and $cfg.Templates.DefaultVmx) { $TemplateVmx = $cfg.Templates.DefaultVmx }
+            }
+            if (-not $TemplateSnapshot) {
+                $cfg = Get-RiDConfig
+                if ($cfg.Templates -and $cfg.Templates.DefaultSnapshot) { $TemplateSnapshot = $cfg.Templates.DefaultSnapshot }
+            }
+            if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) { $TemplateVmx = Read-Host 'Enter the path to the template VMX file' }
+            if (-not $TemplateSnapshot) { $TemplateSnapshot = Read-Host 'Enter the snapshot name in the template to clone from' }
+
+            # Destination
+            if (-not (Test-Path -Path $DestinationPath)) { New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null }
             $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
-            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $template -SnapshotName $snap -DestinationVmx $destVmx
-            Write-Host 'VM creation via vmrun clone is currently a dry‑run. No VM was actually created.' -ForegroundColor Yellow
+
+            # Clone
+            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $TemplateVmx -SnapshotName $TemplateSnapshot -DestinationVmx $destVmx -Apply:$Apply
+
+            # VMX edits (CPU/Mem + optional ISO)
+            $vmxSettings = @{
+                'numvcpus' = $CpuCount
+                'memsize'  = $MemoryMB
+            }
+            if (-not $IsoPath) {
+                $ask = Read-Host 'No ISO path provided. Launch ISO helper? [Y/n]'
+                if ($ask -notmatch '^[Nn]') { $IsoPath = Open-RiDIsoHelper }
+            }
+            if ($IsoPath) {
+                $vmxSettings['ide1:0.present']        = 'TRUE'
+                $vmxSettings['ide1:0.fileName']       = $IsoPath
+                $vmxSettings['ide1:0.deviceType']     = 'cdrom-image'
+                $vmxSettings['ide1:0.startConnected'] = 'TRUE'
+                $vmxSettings['ide1:0.autodetect']     = 'FALSE'
+            }
+            Set-RiDVmxSettings -VmxPath $destVmx -Settings $vmxSettings -Apply:$Apply | Out-Null
+
+            Write-Host ("VM clone completed {0}. VMX updated with CPU/Mem{1}." -f (if ($Apply) { 'and applied' } else { '(dry‑run printed)' }), (if ($IsoPath) { ' + ISO' } else { '' })) -ForegroundColor Yellow
         }
         'none' {
             Write-Warning 'No supported VMware command line tools were detected. Please install vmcli or vmrun.'

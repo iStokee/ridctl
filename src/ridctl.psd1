@@ -32,6 +32,7 @@
         'Get-RiDStatus',
         'Test-RiDVirtualization',
         'Open-RiDIsoHelper',
+        'Initialize-RiDGuest',
         'New-RiDVM',
         'Repair-RiDSharedFolder',
         'Sync-RiDScripts',

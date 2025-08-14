@@ -12,7 +12,13 @@ function Start-RiDVM {
         Path to the .vmx file of the VM to power on.
     #>
     [CmdletBinding()] param(
-        [Parameter(Mandatory=$true)] [string]$VmxPath
+        [Parameter(Mandatory=$true)] [string]$VmxPath,
+        [Parameter()] [switch]$Apply
     )
-    Write-Warning 'Start-RiDVM is not yet implemented. This command currently performs no actions.'
+    $tools = Get-RiDVmTools
+    if (-not $tools.VmrunPath) {
+        Write-Warning 'vmrun not found. Unable to start VM.'
+        return
+    }
+    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'start' -Arguments @('"{0}"' -f $VmxPath, 'nogui') -Apply:$Apply
 }

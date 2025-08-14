@@ -19,7 +19,8 @@ function Enable-RiDSharedFolder {
         [Parameter(Mandatory=$true)] [string]$VmxPath,
         [Parameter(Mandatory=$true)] [string]$ShareName,
         [Parameter(Mandatory=$true)] [string]$HostPath,
-        [Parameter()] [string]$VmrunPath
+        [Parameter()] [string]$VmrunPath,
+        [Parameter()] [switch]$Apply
     )
     if (-not $VmrunPath) {
         $tools = Get-RiDVmTools
@@ -30,8 +31,10 @@ function Enable-RiDSharedFolder {
         return
     }
     Write-Host "[vmrun] enabling shared folders for: $VmxPath" -ForegroundColor DarkCyan
-    Write-Host "[vmrun] enableSharedFolders \"$VmxPath\"" -ForegroundColor DarkCyan
-    Write-Host "[vmrun] removeSharedFolder \"$VmxPath\" \"$ShareName\"" -ForegroundColor DarkCyan
-    Write-Host "[vmrun] addSharedFolder \"$VmxPath\" \"$ShareName\" \"$HostPath\"" -ForegroundColor DarkCyan
-    Write-Host 'Shared folder configuration via vmrun is currently a dry‑run. No changes have been applied.' -ForegroundColor Yellow
+    Invoke-RiDVmrun -VmrunPath $VmrunPath -Command 'enableSharedFolders' -Arguments @('"{0}"' -f $VmxPath) -Apply:$Apply | Out-Null
+    Invoke-RiDVmrun -VmrunPath $VmrunPath -Command 'removeSharedFolder' -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $ShareName) -Apply:$Apply | Out-Null
+    Invoke-RiDVmrun -VmrunPath $VmrunPath -Command 'addSharedFolder'    -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $ShareName, '"{0}"' -f $HostPath) -Apply:$Apply | Out-Null
+    if (-not $Apply) {
+        Write-Host 'Shared folder configuration via vmrun ran in dry‑run mode (no changes applied).' -ForegroundColor Yellow
+    }
 }
