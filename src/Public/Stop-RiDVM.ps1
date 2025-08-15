@@ -10,11 +10,16 @@ function Stop-RiDVM {
     .PARAMETER VmxPath
         Path to the .vmx file of the VM to power off.
     #>
-    [CmdletBinding()] param(
-        [Parameter(Mandatory=$true)] [string]$VmxPath,
-        [Parameter()] [switch]$Hard,
-        [Parameter()] [switch]$Apply
+    [CmdletBinding(SupportsShouldProcess=$true)] param(
+        [Parameter(ParameterSetName='ByPath', Mandatory=$true)] [string]$VmxPath,
+        [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name,
+        [Parameter()] [switch]$Hard
     )
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        $resolved = Resolve-RiDVmxFromName -Name $Name
+        if (-not $resolved) { return }
+        $VmxPath = $resolved
+    }
     if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
@@ -22,5 +27,6 @@ function Stop-RiDVM {
         return
     }
     $mode = if ($Hard) { 'hard' } else { 'soft' }
-    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'stop' -Arguments @('"{0}"' -f $VmxPath, $mode) -Apply:$Apply
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Stop VM ({0})" -f $mode))
+    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'stop' -Arguments @('"{0}"' -f $VmxPath, $mode) -Apply:$apply
 }

@@ -34,8 +34,8 @@ function Install-RiDFido {
         Invoke-WebRequest -Uri $SourceUrl -OutFile $targetPath -UseBasicParsing -ErrorAction Stop
         if ($PersistConfig) {
             $cfg = Get-RiDConfig
-            if (-not $cfg.Iso) { $cfg.Iso = @{} }
-            $cfg.Iso.FidoScriptPath = $targetPath
+            if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
+            $cfg['Iso']['FidoScriptPath'] = $targetPath
             Set-RiDConfig -Config $cfg
             Write-Host ("[fido] Config updated: Iso.FidoScriptPath = {0}" -f $targetPath) -ForegroundColor Cyan
         }
@@ -45,4 +45,3 @@ function Install-RiDFido {
         return $null
     }
 }
-

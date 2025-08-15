@@ -48,7 +48,7 @@ function Get-RiDAggregateStatus {
     try {
         $cfg = Get-RiDConfig
         $shareName = $null
-        if ($cfg.Share -and $cfg.Share.Name) { $shareName = [string]$cfg.Share.Name }
+        if ($cfg['Share'] -and $cfg['Share']['Name']) { $shareName = [string]$cfg['Share']['Name'] }
         if (-not $shareName) { $shareName = 'rid' }
         if ($isVm) {
             $unc = ('\\\\vmware-host\\Shared Folders\\{0}' -f $shareName)
@@ -56,7 +56,7 @@ function Get-RiDAggregateStatus {
         } else {
             # On host: consider OK if configured HostPath exists
             $hostPath = $null
-            if ($cfg.Share -and $cfg.Share.HostPath) { $hostPath = [string]$cfg.Share.HostPath }
+            if ($cfg['Share'] -and $cfg['Share']['HostPath']) { $hostPath = [string]$cfg['Share']['HostPath'] }
             if ($hostPath) { $sharedFolderOk = Test-Path -Path $hostPath -ErrorAction SilentlyContinue }
         }
     } catch { }

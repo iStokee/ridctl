@@ -1,1 +1,32 @@
+## Local configuration (repo-root)
+config.json
+.ridctl.config.json
+
+## Agent docs and notes (keep templates tracked if already committed)
 AGENTS.md
+docs/AGENT_NOTES_TEMPLATE.md
+notes/*.md
+!notes/.gitkeep
+
+## Editor/IDE
+.vscode/
+.idea/
+
+## OS cruft
+.DS_Store
+Thumbs.db
+
+## Logs and temp files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+## Test artifacts
+TestResults/
+
+## Large binaries (avoid committing accidental downloads)
+*.iso
+*.zip
+*.rar

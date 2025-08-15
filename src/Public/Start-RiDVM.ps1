@@ -11,15 +11,21 @@ function Start-RiDVM {
     .PARAMETER VmxPath
         Path to the .vmx file of the VM to power on.
     #>
-    [CmdletBinding()] param(
-        [Parameter(Mandatory=$true)] [string]$VmxPath,
-        [Parameter()] [switch]$Apply
+    [CmdletBinding(SupportsShouldProcess=$true)] param(
+        [Parameter(ParameterSetName='ByPath', Mandatory=$true)] [string]$VmxPath,
+        [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name
     )
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        $resolved = Resolve-RiDVmxFromName -Name $Name
+        if (-not $resolved) { return }
+        $VmxPath = $resolved
+    }
     if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to start VM.'
         return
     }
-    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'start' -Arguments @('"{0}"' -f $VmxPath, 'nogui') -Apply:$Apply
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, 'Start VM')
+    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'start' -Arguments @('"{0}"' -f $VmxPath, 'nogui') -Apply:$apply
 }

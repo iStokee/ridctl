@@ -39,7 +39,11 @@
         'Start-RiDVM',
         'Stop-RiDVM',
         'Checkpoint-RiDVM',
-        'Test-RiDSharedFolder'
+        'Test-RiDSharedFolder',
+        'Register-RiDVM',
+        'Get-RiDVM',
+        'Unregister-RiDVM'
+        ,'Reset-RiDConfig'
     )
 
     # Cmdlets to export from this module

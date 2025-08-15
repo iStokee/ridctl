@@ -64,7 +64,7 @@ function Open-RiDIsoHelper {
                 if (-not $lang) { $lang = 'en-US' }
                 $cfg = Get-RiDConfig
                 $dest = $null
-                if ($cfg.Iso -and $cfg.Iso.DefaultDownloadDir) { $dest = $cfg.Iso.DefaultDownloadDir }
+                if ($cfg['Iso'] -and $cfg['Iso']['DefaultDownloadDir']) { $dest = $cfg['Iso']['DefaultDownloadDir'] }
                 if (-not $dest) { $dest = Read-Host 'Download directory (leave blank for your Downloads folder)' }
                 if (-not $dest) { $dest = [Environment]::GetFolderPath('UserProfile') + '\\Downloads' }
                 $vparam = if ($ver -eq '10') { 'win10' } else { 'win11' }
@@ -77,10 +77,10 @@ function Open-RiDIsoHelper {
                         $ed  = Read-Host 'Edition (default: Pro)'
                         $arch= Read-Host 'Architecture (default: x64)'
                         $cfg = Get-RiDConfig
-                        if (-not $cfg.Iso) { $cfg.Iso = @{} }
-                        if ($rel) { $cfg.Iso.Release = $rel }
-                        if ($ed)  { $cfg.Iso.Edition = $ed }
-                        if ($arch){ $cfg.Iso.Arch    = $arch }
+                        if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
+                        if ($rel) { $cfg['Iso']['Release'] = $rel }
+                        if ($ed)  { $cfg['Iso']['Edition'] = $ed }
+                        if ($arch){ $cfg['Iso']['Arch']    = $arch }
                         if ($rel -or $ed -or $arch) { Set-RiDConfig -Config $cfg }
                     }
                 }

@@ -12,27 +12,44 @@ Import-Module ridctl
 Show-RiDMenu
 ```
 
-This displays the menu scaffold. You can also try these implemented
+On first run, you’ll be prompted to configure a few defaults (download folder, shared folder name/path, templates, and optional vmrun path). You can change these anytime under the Options menu. You can also try these implemented
 building blocks:
 
 - `Test-RiDVirtualization`: Runs host readiness checks and reports VT status and Windows feature conflicts.
-- `Start-RiDVM -VmxPath <path> [-Apply]`: Prints or (with `-Apply`) powers on a VM via `vmrun`.
-- `Stop-RiDVM -VmxPath <path> [-Hard] [-Apply]`: Prints or (with `-Apply`) powers off a VM via `vmrun`.
-- `Checkpoint-RiDVM -VmxPath <path> -SnapshotName <name> [-Apply]`: Prints or (with `-Apply`) takes a snapshot via `vmrun`.
-- `Repair-RiDSharedFolder -VmxPath <path> -ShareName <name> -HostPath <path> [-Apply]`: Prints or (with `-Apply`) enables and configures a shared folder via `vmrun`.
+- `Start-RiDVM -VmxPath <path> -WhatIf` or `-Confirm:$true`: Preview or confirm powering on a VM via `vmrun`.
+- `Stop-RiDVM -VmxPath <path> [-Hard] -WhatIf` or `-Confirm:$true`: Preview or confirm powering off a VM via `vmrun`.
+- `Checkpoint-RiDVM -VmxPath <path> -SnapshotName <name> -WhatIf` or `-Confirm:$true`: Preview or confirm taking a snapshot via `vmrun`.
+- `Repair-RiDSharedFolder -VmxPath <path> -ShareName <name> -HostPath <path> -WhatIf` or `-Confirm:$true`: Preview or confirm enabling/configuring a shared folder via `vmrun`.
  - `Initialize-RiDGuest [-InstallJava] [-RiDUrl <url>] [-Destination <path>]`: Installs 7‑Zip (and optionally Java), downloads the RiD archive, and extracts it inside the guest.
+
+Registered VMs (friendlier than typing .vmx paths):
+
+- `Register-RiDVM -Name <friendly> -VmxPath <path>`: Registers an existing VM for easy reference.
+- `Get-RiDVM` or `Get-RiDVM -Name <friendly>`: Lists or returns a registered VM.
+- `Unregister-RiDVM -Name <friendly>`: Removes a VM from the registry.
+- Most VM actions also accept `-Name` instead of `-VmxPath`:
+  - `Start-RiDVM -Name <friendly> -WhatIf` or `-Confirm:$true`
+  - `Stop-RiDVM -Name <friendly> [-Hard] -WhatIf` or `-Confirm:$true`
+  - `Checkpoint-RiDVM -Name <friendly> -SnapshotName <name> -WhatIf` or `-Confirm:$true`
+  - `Repair-RiDSharedFolder -Name <friendly> -ShareName <name> -HostPath <path> -WhatIf` or `-Confirm:$true`
+
+Managing registered VMs in the menu:
+- From `Show-RiDMenu` on host, choose `7) Registered VMs`.
+- If none exist, you’ll be prompted to register one (name + `.vmx` path).
+- When VMs are listed, select an index to perform actions: Start, Stop, Snapshot; or choose `r` to register another or `u` to unregister.
 
 Creating a new VM (vmrun clone):
 
 ```powershell
-New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 4096 -Method vmrun -TemplateVmx 'C:\Templates\Win11Template\Win11Template.vmx' -TemplateSnapshot 'CleanOS' [-IsoPath 'C:\ISOs\Win11.iso'] [-Apply]
+# Preview (no changes):
+New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 4096 -Method vmrun -TemplateVmx 'C:\Templates\Win11Template\Win11Template.vmx' -TemplateSnapshot 'CleanOS' -WhatIf
+
+# Execute with confirmation prompt:
+New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 4096 -Method vmrun -TemplateVmx 'C:\Templates\Win11Template\Win11Template.vmx' -TemplateSnapshot 'CleanOS' -Confirm:$true
 ```
 
 - If `-IsoPath` is omitted, the command can launch the ISO helper.
-- Without `-Apply`, clone and VMX edits are printed (dry‑run) but not executed.
-
-Without `-Apply`, commands run in dry‑run mode and only print the
-`vmrun` commands that would be executed.
+- With `-WhatIf`, clone and VMX edits are printed (dry‑run). With `-Confirm`, you are prompted before applying.
 
 ## Virtualization Readiness
 
@@ -63,9 +80,9 @@ Example config:
 
 ```pwsh
 $cfg = Get-RiDConfig
-$cfg.Iso = @{
-  FidoScriptPath = 'D:\tools\fido\Get-WindowsIso.ps1'
-  DefaultDownloadDir = 'D:\ISOs'
+$cfg['Iso'] = @{
+  'FidoScriptPath'     = 'D:\\tools\\fido\\Get-WindowsIso.ps1'
+  'DefaultDownloadDir' = 'D:\\ISOs'
 }
 Set-RiDConfig $cfg
 ```
@@ -79,14 +96,24 @@ ridctl uses Fido's command-line mode and tries to auto-download the ISO when you
 
 ```pwsh
 $cfg = Get-RiDConfig
-if (-not $cfg.Iso) { $cfg.Iso = @{} }
-$cfg.Iso.Release = '23H2'   # or another release code
-$cfg.Iso.Edition = 'Pro'    # e.g., Home, Pro, Education
-$cfg.Iso.Arch    = 'x64'    # x64, x86, arm64
+if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
+$cfg['Iso']['Release'] = '23H2'   # or another release code
+$cfg['Iso']['Edition'] = 'Pro'    # e.g., Home, Pro, Education
+$cfg['Iso']['Arch']    = 'x64'    # x64, arm64
 Set-RiDConfig $cfg
 ```
 
 ridctl captures Fido's `-GetUrl` output, downloads to your destination, and returns the ISO path. If it can't obtain a URL, it falls back to the interactive flow.
+ 
+## Options Menu
+
+From `Show-RiDMenu` on host, select `8) Options` to view/edit settings grouped by:
+- ISO: `Iso.DefaultDownloadDir`, `Iso.FidoScriptPath`, `Iso.Release`, `Iso.Edition`, `Iso.Arch`
+- Templates: `Templates.DefaultVmx`, `Templates.DefaultSnapshot`
+- Shared Folder: `Share.Name`, `Share.HostPath`
+- VMware: `Vmware.vmrunPath`
+
+Changes are saved via `Set-RiDConfig` and used on subsequent runs.
 ## About VMX Paths
 
 - A `.vmx` file is the VMware Workstation VM configuration file, usually located under your VM folder: `C:\VMs\MyVM\MyVM.vmx`.

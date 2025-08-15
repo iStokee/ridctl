@@ -22,12 +22,17 @@ function Repair-RiDSharedFolder {
         PS> Repair-RiDSharedFolder -VmxPath 'C:\VMs\RiDVM1\RiDVM1.vmx' -ShareName 'RiDShare' -HostPath 'C:\RiDShare'
         WARNING: Repair-RiDSharedFolder is not yet implemented.
     #>
-    [CmdletBinding()] param(
-        [Parameter(Mandatory=$true)] [string]$VmxPath,
+    [CmdletBinding(SupportsShouldProcess=$true)] param(
+        [Parameter(ParameterSetName='ByPath', Mandatory=$true)] [string]$VmxPath,
+        [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name,
         [Parameter(Mandatory=$true)] [string]$ShareName,
-        [Parameter(Mandatory=$true)] [string]$HostPath,
-        [Parameter()] [switch]$Apply
+        [Parameter(Mandatory=$true)] [string]$HostPath
     )
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        $resolved = Resolve-RiDVmxFromName -Name $Name
+        if (-not $resolved) { return }
+        $VmxPath = $resolved
+    }
     if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     # Locate vmrun executable
     $tools = Get-RiDVmTools
@@ -35,5 +40,6 @@ function Repair-RiDSharedFolder {
         Write-Warning 'vmrun not found. Unable to configure shared folders.'
         return
     }
-    Enable-RiDSharedFolder -VmxPath $VmxPath -ShareName $ShareName -HostPath $HostPath -VmrunPath $tools.VmrunPath -Apply:$Apply
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Configure shared folder '{0}'" -f $ShareName))
+    Enable-RiDSharedFolder -VmxPath $VmxPath -ShareName $ShareName -HostPath $HostPath -VmrunPath $tools.VmrunPath -Apply:$apply
 }

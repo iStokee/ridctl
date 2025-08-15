@@ -1,7 +1,7 @@
 # RiDCTL Development Checklist
 
 > Single source of truth for "what to do next." Work top‑to‑bottom unless a task is blocked.  
-> Conventions: run in **PowerShell 7+** on Windows. Use `-Apply` to perform real changes; otherwise commands run in **dry‑run** mode.
+> Conventions: run in **PowerShell 7+** on Windows. Use `-WhatIf` to preview and `-Confirm` to prompt before applying changes in public cmdlets. Private helpers may still use `-Apply` internally during the transition.
 
 ## Legend
 - [ ] = not started · [~] = in progress · [x] = done
@@ -40,18 +40,18 @@
 ## M4 — VM Creation via vmrun (Clone from Template)
 - [x] Implement `Clone-RiDVmrunTemplate -TemplateVmx -Snapshot -TargetDir -Name [-Apply]` with robust error handling.
 - [x] Apply VMX edits via `Set-RiDVmxSettings` (CPU, Memory, ISO attach, guest OS type).
-- **How to test:** With a valid template snapshot, run with `-Apply`; confirm new VM folder, edited VMX, and `vmrun start` boots.
+- **How to test:** With a valid template snapshot, run `New-RiDVM ... -WhatIf` to preview then `-Confirm:$true` to apply; confirm new VM folder, edited VMX, and `vmrun start` boots.
 
 ## M5 — VM Creation via vmcli (Fresh Create)
 - [x] Implement `Invoke-RiDVmCliCommand` wrapper and `New-RiDVmCliVM` (supports `--iso` attach).
 - [x] `New-RiDVM -Method auto` chooses vmcli when present; else falls back to vmrun clone.
-- **How to test:** On Workstation 17+ with `vmcli`, run with `-Apply`; confirm a bootable fresh VM is created.
+- **How to test:** On Workstation 17+ with `vmcli`, run `New-RiDVM ... -WhatIf` to preview then `-Confirm:$true` to apply; confirm a bootable fresh VM is created.
 
 ## M6 — Shared Folder Configure & Verify (Host + Guest)
 - [x] Finalize `Enable-RiDSharedFolder`/`Repair-RiDSharedFolder` (quotes, logging, `-Apply` path).
 - [x] Add guest‑side verification helper (via Tools: `vmrun -gu/-gp runProgramInGuest` to check `\\vmware-host\Shared Folders\<Name>` or a known sentinel file).
 - [x] Report `Get-RiDStatus.SharedFolder.Ok` accordingly and surface in TUI.
-- **How to test:** Break the share, run Repair, verify guest sees the path; status turns green.
+- **How to test:** Break the share, run `Repair-RiDSharedFolder ... -WhatIf` to preview then `-Confirm:$true` to apply; verify guest sees the path; status turns green.
 
 ## M7 — Guest Configure (Java + RiD)
 - [ ] `Initialize-RiDGuest` installs 7‑Zip, optionally Java; downloads RiD archive; extracts to target; prints launch instructions.
@@ -65,17 +65,17 @@
 - **How to test:** Create asymmetric files; run each direction with `-DryRun` (prints plan) and with `-Apply` (performs).
 
 ## M9 — Utilities Polish
-- [ ] Ensure `Start/Stop/Checkpoint-RiDVM` forward `-Apply` and show clear errors; add smoke tests.
-- **How to test:** Start/stop a known VM; create a snapshot; verify outcomes and messages.
+- [ ] Ensure `Start/Stop/Checkpoint-RiDVM` use `ShouldProcess` (`-WhatIf/-Confirm`) and show clear errors; add smoke tests.
+- **How to test:** Use `-WhatIf` to preview and `-Confirm` to run for a known VM; verify outcomes and messages.
 
 ## M10 — Menu Wiring for Full Flows
-- [x] Host “Create new VM” menu calls ISO helper if `-IsoPath` not provided; confirms before any `-Apply` action.
+- [x] Host “Create new VM” menu calls ISO helper if `-IsoPath` not provided; uses native preview/confirm (`-WhatIf/-Confirm`).
 - [x] Guest menu offers “Initialize guest” and “Sync Scripts” only.
 - **How to test:** From menu, perform the host new‑VM flow end‑to‑end to a booting VM; perform guest init afterward.
 
 ## M11 — Config Persistence & Defaults
-- [ ] On first run, prompt for key defaults; save via `Set-RiDConfig`.
-- [ ] Subsequent runs auto‑use saved defaults; menu shows them.
+- [x] On first run, prompt for key defaults; save via `Set-RiDConfig`.
+- [x] Subsequent runs auto‑use saved defaults; menu shows them.
 - **How to test:** Delete config; run; set defaults; re‑run and confirm auto‑population.
 
 ## M12 — Tests & CI
@@ -112,10 +112,10 @@ Test-RiDVirtualization
 Open-RiDIsoHelper -Automated
 
 # Create VM (auto method)
-New-RiDVM -Name 'rid-win10' -Cpu 4 -MemoryGB 8 -Apply
+New-RiDVM -Name 'rid-win10' -CpuCount 4 -MemoryMB 8192 -Confirm:$true
 
 # Shared folder repair
-Repair-RiDSharedFolder -VmPath 'C:\VMs\rid-win10\rid-win10.vmx' -ShareName 'rid' -HostPath 'D:\rid-share' -Apply
+Repair-RiDSharedFolder -VmxPath 'C:\VMs\rid-win10\rid-win10.vmx' -ShareName 'rid' -HostPath 'D:\rid-share' -Confirm:$true
 
 # Guest initialize (run inside VM)
 Initialize-RiDGuest -InstallJava -RidZipUrl '<your-zip-url>'

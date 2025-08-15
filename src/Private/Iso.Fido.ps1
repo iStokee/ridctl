@@ -13,8 +13,8 @@
 function Get-RiDFidoScriptPath {
     [CmdletBinding()] param()
     $cfg = Get-RiDConfig
-    if ($cfg.Iso -and $cfg.Iso.FidoScriptPath -and (Test-Path -Path $cfg.Iso.FidoScriptPath)) {
-        return $cfg.Iso.FidoScriptPath
+    if ($cfg['Iso'] -and $cfg['Iso']['FidoScriptPath'] -and (Test-Path -Path $cfg['Iso']['FidoScriptPath'])) {
+        return $cfg['Iso']['FidoScriptPath']
     }
     # Default: third_party\fido\Get-WindowsIso.ps1 relative to repo root
     $privateDir = $PSScriptRoot
@@ -62,9 +62,9 @@ function Invoke-RiDFidoDownload {
         $release = $null
         $edition = $null
         $arch    = $null
-        if ($cfg.Iso -and $cfg.Iso.Release) { $release = [string]$cfg.Iso.Release }
-        if ($cfg.Iso -and $cfg.Iso.Edition) { $edition = [string]$cfg.Iso.Edition }
-        if ($cfg.Iso -and $cfg.Iso.Arch)    { $arch    = [string]$cfg.Iso.Arch }
+        if ($cfg['Iso'] -and $cfg['Iso']['Release']) { $release = [string]$cfg['Iso']['Release'] }
+        if ($cfg['Iso'] -and $cfg['Iso']['Edition']) { $edition = [string]$cfg['Iso']['Edition'] }
+        if ($cfg['Iso'] -and $cfg['Iso']['Arch'])    { $arch    = [string]$cfg['Iso']['Arch'] }
         if (-not $release) { $release = if ($Version -eq 'win10') { '22H2' } else { '23H2' } }
         if (-not $edition) { $edition = 'Pro' }
         if (-not $arch)    { $arch    = 'x64' }

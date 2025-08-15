@@ -13,16 +13,22 @@ function Checkpoint-RiDVM {
     .PARAMETER SnapshotName
         Name of the snapshot to create.
     #>
-    [CmdletBinding()] param(
-        [Parameter(Mandatory=$true)] [string]$VmxPath,
-        [Parameter(Mandatory=$true)] [string]$SnapshotName,
-        [Parameter()] [switch]$Apply
+    [CmdletBinding(SupportsShouldProcess=$true)] param(
+        [Parameter(ParameterSetName='ByPath', Mandatory=$true)] [string]$VmxPath,
+        [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name,
+        [Parameter(Mandatory=$true)] [string]$SnapshotName
     )
+    if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        $resolved = Resolve-RiDVmxFromName -Name $Name
+        if (-not $resolved) { return }
+        $VmxPath = $resolved
+    }
     if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to create snapshot.'
         return
     }
-    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'snapshot' -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $SnapshotName) -Apply:$Apply
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Create snapshot '{0}'" -f $SnapshotName))
+    Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'snapshot' -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $SnapshotName) -Apply:$apply
 }

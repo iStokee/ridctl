@@ -5,14 +5,14 @@
 1. Foundations
    - Environment detection (host vs guest), virtualization checks
    - Browser helper, configuration load/save, logging hooks
-   - Safe dry-run defaults, vmrun wrappers with optional `-Apply`
+   - Safe dry-run defaults using `-WhatIf/-Confirm` in public cmdlets; `-Apply` remains in private wrappers
 
 2. ISO Flow
    - Guided ISO selection and validation
    - Stub automated Fido download (version/language selection)
 
 3. VMware Operations (vmrun)
-   - Start/stop/snapshot/shared folders (dry-run + `-Apply`)
+   - Start/stop/snapshot/shared folders (`-WhatIf/-Confirm` for public; `-Apply` for private helpers)
    - Robust error handling and user prompts
 
 4. VM Provisioning
@@ -107,4 +107,3 @@ See repository layout under `src/Public` and `src/Private` with helpers for vmru
 - M4: Shared folder provision/repair
 - M5: Sync v2 integration
 - M6: Polish & docs
-

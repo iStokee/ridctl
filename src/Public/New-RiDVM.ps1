@@ -35,7 +35,7 @@ function New-RiDVM {
         PS> New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs' -CpuCount 2 -MemoryMB 4096 -DiskGB 60
         WARNING: New-RiDVM is not yet implemented.
     #>
-    [CmdletBinding()] param(
+    [CmdletBinding(SupportsShouldProcess=$true)] param(
         [Parameter(Mandatory=$true)]
         [string]$Name,
 
@@ -48,8 +48,7 @@ function New-RiDVM {
         [Parameter()] [string]$IsoPath,
         [Parameter()] [ValidateSet('auto','vmcli','vmrest','vmrun')][string]$Method = 'auto',
         [Parameter()] [string]$TemplateVmx,
-        [Parameter()] [string]$TemplateSnapshot,
-        [Parameter()] [switch]$Apply
+        [Parameter()] [string]$TemplateSnapshot
     )
 
     # Determine available VMware command line tools
@@ -66,8 +65,15 @@ function New-RiDVM {
                 Write-Warning 'vmcli was selected but could not be found on this system.'
                 return
             }
-            $vmx = New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -Apply:$Apply
-            if (-not $Apply) { Write-Host 'VM creation via vmcli ran in dry-run mode (printed command only).' -ForegroundColor Yellow }
+            $target = (Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx"))
+            $apply = $PSCmdlet.ShouldProcess($target, "Create new VM via vmcli")
+            $vmx = New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -Apply:$apply
+            if ($apply -and $vmx) {
+                $ans = Read-Host ("Register this VM as '{0}' for quick access? [Y/n]" -f $Name)
+                if ($ans -notmatch '^[Nn]') {
+                    try { Register-RiDVM -Name $Name -VmxPath $vmx -Confirm:$true } catch { Write-Error $_ }
+                }
+            }
         }
         'vmrun' {
             if (-not $tools.VmrunPath) {
@@ -77,11 +83,11 @@ function New-RiDVM {
             # Resolve template/snapshot from params, config or prompts
             if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) {
                 $cfg = Get-RiDConfig
-                if (-not $TemplateVmx -and $cfg.Templates -and $cfg.Templates.DefaultVmx) { $TemplateVmx = $cfg.Templates.DefaultVmx }
+                if (-not $TemplateVmx -and $cfg['Templates'] -and $cfg['Templates']['DefaultVmx']) { $TemplateVmx = $cfg['Templates']['DefaultVmx'] }
             }
             if (-not $TemplateSnapshot) {
                 $cfg = Get-RiDConfig
-                if ($cfg.Templates -and $cfg.Templates.DefaultSnapshot) { $TemplateSnapshot = $cfg.Templates.DefaultSnapshot }
+                if ($cfg['Templates'] -and $cfg['Templates']['DefaultSnapshot']) { $TemplateSnapshot = $cfg['Templates']['DefaultSnapshot'] }
             }
             if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) { $TemplateVmx = Read-Host 'Enter the path to the template VMX file' }
             if (-not $TemplateSnapshot) { $TemplateSnapshot = Read-Host 'Enter the snapshot name in the template to clone from' }
@@ -90,8 +96,9 @@ function New-RiDVM {
             if (-not (Test-Path -Path $DestinationPath)) { New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null }
             $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
 
-            # Clone
-            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $TemplateVmx -SnapshotName $TemplateSnapshot -DestinationVmx $destVmx -Apply:$Apply
+            # Confirm action and clone
+            $apply = $PSCmdlet.ShouldProcess($destVmx, "Clone VM from template via vmrun")
+            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $TemplateVmx -SnapshotName $TemplateSnapshot -DestinationVmx $destVmx -Apply:$apply
 
             # VMX edits (CPU/Mem + optional ISO)
             $vmxSettings = @{
@@ -109,11 +116,18 @@ function New-RiDVM {
                 $vmxSettings['ide1:0.startConnected'] = 'TRUE'
                 $vmxSettings['ide1:0.autodetect']     = 'FALSE'
             }
-            Set-RiDVmxSettings -VmxPath $destVmx -Settings $vmxSettings -Apply:$Apply | Out-Null
+            Set-RiDVmxSettings -VmxPath $destVmx -Settings $vmxSettings -Apply:$apply | Out-Null
 
-            $appliedText = if ($Apply) { 'and applied' } else { '(dry-run printed)' }
-            $isoText     = if ($IsoPath) { ' + ISO' } else { '' }
-            Write-Host ("VM clone completed {0}. VMX updated with CPU/Mem{1}." -f $appliedText, $isoText) -ForegroundColor Yellow
+            $isoText = if ($IsoPath) { ' + ISO' } else { '' }
+            if ($apply) {
+                Write-Host ("VM clone completed and VMX updated with CPU/Mem{0}." -f $isoText) -ForegroundColor Yellow
+                $ans = Read-Host ("Register this VM as '{0}' for quick access? [Y/n]" -f $Name)
+                if ($ans -notmatch '^[Nn]') {
+                    try { Register-RiDVM -Name $Name -VmxPath $destVmx -Confirm:$true } catch { Write-Error $_ }
+                }
+            } else {
+                Write-Host ("Planned clone and VMX updates printed (dry-run){0}." -f $isoText) -ForegroundColor Yellow
+            }
         }
         'none' {
             Write-Warning 'No supported VMware command line tools were detected. Please install vmcli or vmrun.'
