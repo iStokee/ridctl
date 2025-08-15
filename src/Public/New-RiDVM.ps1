@@ -66,8 +66,8 @@ function New-RiDVM {
                 Write-Warning 'vmcli was selected but could not be found on this system.'
                 return
             }
-            New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath
-            Write-Host 'VM creation via vmcli is currently a dry‑run. No VM was actually created.' -ForegroundColor Yellow
+            $vmx = New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -Apply:$Apply
+            if (-not $Apply) { Write-Host 'VM creation via vmcli ran in dry-run mode (printed command only).' -ForegroundColor Yellow }
         }
         'vmrun' {
             if (-not $tools.VmrunPath) {
@@ -111,7 +111,9 @@ function New-RiDVM {
             }
             Set-RiDVmxSettings -VmxPath $destVmx -Settings $vmxSettings -Apply:$Apply | Out-Null
 
-            Write-Host ("VM clone completed {0}. VMX updated with CPU/Mem{1}." -f (if ($Apply) { 'and applied' } else { '(dry‑run printed)' }), (if ($IsoPath) { ' + ISO' } else { '' })) -ForegroundColor Yellow
+            $appliedText = if ($Apply) { 'and applied' } else { '(dry-run printed)' }
+            $isoText     = if ($IsoPath) { ' + ISO' } else { '' }
+            Write-Host ("VM clone completed {0}. VMX updated with CPU/Mem{1}." -f $appliedText, $isoText) -ForegroundColor Yellow
         }
         'none' {
             Write-Warning 'No supported VMware command line tools were detected. Please install vmcli or vmrun.'

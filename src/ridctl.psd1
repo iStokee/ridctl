@@ -38,7 +38,8 @@
         'Sync-RiDScripts',
         'Start-RiDVM',
         'Stop-RiDVM',
-        'Checkpoint-RiDVM'
+        'Checkpoint-RiDVM',
+        'Test-RiDSharedFolder'
     )
 
     # Cmdlets to export from this module

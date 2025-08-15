@@ -16,12 +16,16 @@ function Show-RiDOpenFileDialog {
         path or `$null` if the user cancels.
     #>
     [CmdletBinding()] param(
-        [Parameter()] [string]$Filter = '*.*'
+        [Parameter()] [string]$Filter = '*.*',
+        [Parameter()] [string]$InitialDirectory,
+        [Parameter()] [string]$Title
     )
     try {
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
         $dialog = New-Object System.Windows.Forms.OpenFileDialog
         $dialog.Filter = $Filter
+        if ($InitialDirectory) { $dialog.InitialDirectory = $InitialDirectory }
+        if ($Title) { $dialog.Title = $Title }
         $dialog.Multiselect = $false
         $result = $dialog.ShowDialog()
         if ($result -eq [System.Windows.Forms.DialogResult]::OK) {

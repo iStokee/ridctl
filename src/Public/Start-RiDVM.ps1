@@ -15,6 +15,7 @@ function Start-RiDVM {
         [Parameter(Mandatory=$true)] [string]$VmxPath,
         [Parameter()] [switch]$Apply
     )
+    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to start VM.'

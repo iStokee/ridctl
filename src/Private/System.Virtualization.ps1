@@ -32,6 +32,10 @@ function Get-RiDVirtSupport {
         WslPresent                    = $null
         HypervisorLaunchTypeActive    = $null
         MemoryIntegrityEnabled        = $null
+        HypervisorPresent             = $null
+        WindowsSandboxPresent         = $null
+        DeviceGuardVBSConfigured      = $null
+        DeviceGuardVBSRunning         = $null
     }
 
     # Skip checks if running inside a guest
@@ -82,6 +86,10 @@ function Get-RiDVirtSupport {
             if ($null -ne $wsl) {
                 $result.WslPresent = ($wsl.State -eq 'Enabled')
             }
+            $wsb = Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -ErrorAction SilentlyContinue
+            if ($null -ne $wsb) {
+                $result.WindowsSandboxPresent = ($wsb.State -eq 'Enabled')
+            }
         }
     } catch {
         Write-Verbose "Failed to query optional features: $_"
@@ -104,5 +112,27 @@ function Get-RiDVirtSupport {
         $enabled = Get-ItemProperty -Path $regPath -Name Enabled -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Enabled -ErrorAction SilentlyContinue
         if ($null -ne $enabled) { $result.MemoryIntegrityEnabled = ($enabled -eq 1) }
     } catch { Write-Verbose "Failed to query HVCI: $_" }
+
+    # Device Guard / VBS status
+    try {
+        $dg = Get-CimInstance -Namespace 'root/Microsoft/Windows/DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction SilentlyContinue
+        if ($dg) {
+            $cfg = @($dg.SecurityServicesConfigured)
+            $run = @($dg.SecurityServicesRunning)
+            $vbsStatus = $dg.VirtualizationBasedSecurityStatus
+            $result.DeviceGuardVBSConfigured = ($vbsStatus -gt 0 -or $cfg.Count -gt 0)
+            $result.DeviceGuardVBSRunning    = ($run.Count -gt 0)
+            # Prefer running list to set MemoryIntegrityEnabled if detectable
+            if ($run -contains 2) { $result.MemoryIntegrityEnabled = $true }
+        }
+    } catch { Write-Verbose "Failed to query Device Guard: $_" }
+
+    # Hypervisor present (running now)
+    try {
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+        if ($cs -and ($cs.PSObject.Properties.Name -contains 'HypervisorPresent')) {
+            $result.HypervisorPresent = [bool]$cs.HypervisorPresent
+        }
+    } catch { Write-Verbose "Failed to query computer system hypervisor presence: $_" }
     return $result
 }

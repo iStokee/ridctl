@@ -15,8 +15,8 @@ function Set-RiDVmxSettings {
     foreach ($key in $Settings.Keys) {
         $value = $Settings[$key]
         $escaped = [regex]::Escape($key)
-        $pattern = "^$escaped\s*=\s*\".*\"\s*$"
-        $newLine = '{0} = "{1}"' -f $key, $value
+        $pattern = ('^{0}\s*=\s*".*"\s*$' -f $escaped)
+        $newLine = ('{0} = "{1}"' -f $key, $value)
         $idx = [Array]::FindIndex($lines, [Predicate[string]]{ param($l) $l -match $pattern })
         if ($idx -ge 0) { $lines[$idx] = $newLine } else { $lines += $newLine }
     }
@@ -33,3 +33,27 @@ function Set-RiDVmxSettings {
     return 0
 }
 
+function Test-RiDVmxPath {
+    [CmdletBinding()] param(
+        [Parameter(Mandatory=$true)] [string]$VmxPath,
+        [Parameter()] [switch]$RequireExists
+    )
+    if (-not $VmxPath) { Write-Error 'Please provide a path to a .vmx file (e.g., C:\VMs\MyVM\MyVM.vmx).'; return $false }
+    $ext = [System.IO.Path]::GetExtension($VmxPath)
+    if (($ext -as [string]).ToLowerInvariant() -ne '.vmx') { Write-Error 'Path must point to a .vmx file (e.g., C:\VMs\MyVM\MyVM.vmx).'; return $false }
+    if ($RequireExists -and -not (Test-Path -Path $VmxPath)) { Write-Error ("VMX not found at: {0}" -f $VmxPath); return $false }
+    return $true
+}
+
+function Get-RiDVmxPathHelp {
+    [CmdletBinding()] param()
+    @'
+VMX path requirements:
+- Use the full path to the VMware Workstation configuration file ending with .vmx.
+- PowerShell does not require escaping backslashes — use normal Windows paths.
+- If the path contains spaces, wrap it in quotes.
+- Examples:
+  'C:\\VMs\\MyVM\\MyVM.vmx'
+  "C:\\VMs\\My VM With Spaces\\My VM With Spaces.vmx"
+'@
+}

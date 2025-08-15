@@ -14,21 +14,10 @@ function Show-RiDMenu {
     #>
     [CmdletBinding()] param()
 
-    function _WriteBanner {
-        Write-Host 'RiD Control' -ForegroundColor Cyan
-        Write-Host '============' -ForegroundColor Cyan
-    }
-
+    function _WriteBanner { Write-RiDHeader }
     function _ShowStatus {
         $s = Get-RiDStatus
-        $role = if ($s.IsVM) { 'Guest VM' } else { 'Host' }
-        Write-Host ("Role: {0}" -f $role) -ForegroundColor White
-        if (-not $s.IsVM) {
-            $vt = if ($s.VTReady -eq $true) { 'Ready' } elseif ($s.VTReady -eq $false) { 'Not Ready' } else { 'Unknown' }
-            Write-Host ("Virtualization: {0}" -f $vt) -ForegroundColor White
-        }
-        Write-Host ("VMware Tools Installed: {0}" -f $s.VmwareToolsInstalled) -ForegroundColor White
-        Write-Host ''
+        Write-RiDStatusCards -Status $s
     }
 
     function _Pause {
@@ -66,19 +55,34 @@ function Show-RiDMenu {
                         if (-not $mem) { $mem = 4096 }
                         $disk = Read-Host 'Disk GB (default 60)'
                         if (-not $disk) { $disk = 60 }
-                        $iso  = Read-Host 'ISO path (leave blank to skip)'
-                        New-RiDVM -Name $name -DestinationPath $dest -CpuCount ([int]$cpu) -MemoryMB ([int]$mem) -DiskGB ([int]$disk) -IsoPath ($iso)
+                        $method = Read-Host 'Method [auto/vmcli/vmrun] (default auto)'
+                        if (-not $method) { $method = 'auto' }
+                        $iso  = Read-Host 'ISO path (leave blank to use helper)'
+                        if (-not $iso) {
+                            $useHelper = Read-Host 'Launch ISO helper now? [Y/n]'
+                            if ($useHelper -notmatch '^[Nn]') { $iso = Open-RiDIsoHelper }
+                        }
+                        $confirm = Read-Host 'Apply changes (create VM)? [y/N]'
+                        $doApply = ($confirm -match '^[Yy]')
+                        New-RiDVM -Name $name -DestinationPath $dest -CpuCount ([int]$cpu) -MemoryMB ([int]$mem) -DiskGB ([int]$disk) -IsoPath ($iso) -Method $method -Apply:$doApply
                     } catch { Write-Error $_ }
                     _Pause
                 }
                 '3' {
                     try {
-                        $vmx  = Read-Host 'Path to VMX file'
+                        $vmx  = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
                         $name = Read-Host 'Shared folder name (e.g. RiDShare)'
                         $host = Read-Host 'Host path to share (e.g. C:\\RiDShare)'
                         $apply = Read-Host 'Apply changes? [y/N]'
                         $doApply = ($apply -match '^[Yy]')
                         Repair-RiDSharedFolder -VmxPath $vmx -ShareName $name -HostPath $host -Apply:$doApply
+                        $verify = Read-Host 'Verify inside guest now? [y/N]'
+                        if ($verify -match '^[Yy]') {
+                            $gu = Read-Host 'Guest username'
+                            $gp = Read-Host 'Guest password'
+                            $ok = Test-RiDSharedFolder -VmxPath $vmx -ShareName $name -GuestUser $gu -GuestPassword $gp
+                            if ($ok) { Write-Host 'Guest can access the shared folder.' -ForegroundColor Green } else { Write-Host 'Guest cannot access the shared folder.' -ForegroundColor Yellow }
+                        }
                     } catch { Write-Error $_ }
                     _Pause
                 }
@@ -112,18 +116,18 @@ function Show-RiDMenu {
                         $u = Read-Host 'Choose'
                         switch ($u.ToLower()) {
                             'a' {
-                                $vmx = Read-Host 'Path to VMX file'
+                                $vmx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
                                 $apply = Read-Host 'Apply? [y/N]'
                                 Start-RiDVM -VmxPath $vmx -Apply:($apply -match '^[Yy]')
                             }
                             'b' {
-                                $vmx = Read-Host 'Path to VMX file'
+                                $vmx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
                                 $hard = Read-Host 'Hard stop? [y/N]'
                                 $apply = Read-Host 'Apply? [y/N]'
                                 Stop-RiDVM -VmxPath $vmx -Hard:($hard -match '^[Yy]') -Apply:($apply -match '^[Yy]')
                             }
                             'c' {
-                                $vmx = Read-Host 'Path to VMX file'
+                                $vmx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
                                 $snap = Read-Host 'Snapshot name'
                                 $apply = Read-Host 'Apply? [y/N]'
                                 Checkpoint-RiDVM -VmxPath $vmx -SnapshotName $snap -Apply:($apply -match '^[Yy]')
@@ -133,7 +137,7 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                'X' { break }
+                'X' { return }
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }
         } else {
@@ -169,7 +173,7 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                'X' { break }
+                'X' { return }
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }
         }

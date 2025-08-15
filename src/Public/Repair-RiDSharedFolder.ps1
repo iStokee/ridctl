@@ -28,6 +28,7 @@ function Repair-RiDSharedFolder {
         [Parameter(Mandatory=$true)] [string]$HostPath,
         [Parameter()] [switch]$Apply
     )
+    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     # Locate vmrun executable
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {

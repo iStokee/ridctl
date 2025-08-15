@@ -56,8 +56,37 @@ function Open-RiDIsoHelper {
             return $null
         }
         'A' {
-            Write-Host 'Automated download via Fido is not yet implemented.' -ForegroundColor Yellow
-            return $null
+            # Automated path using Fido integration (if available)
+            try {
+                $ver = Read-Host 'Version [10/11] (default 11)'
+                if ($ver -ne '10' -and $ver -ne '11') { $ver = '11' }
+                $lang = Read-Host 'Language (e.g., en-US) [default en-US]'
+                if (-not $lang) { $lang = 'en-US' }
+                $cfg = Get-RiDConfig
+                $dest = $null
+                if ($cfg.Iso -and $cfg.Iso.DefaultDownloadDir) { $dest = $cfg.Iso.DefaultDownloadDir }
+                if (-not $dest) { $dest = Read-Host 'Download directory (leave blank for your Downloads folder)' }
+                if (-not $dest) { $dest = [Environment]::GetFolderPath('UserProfile') + '\\Downloads' }
+                $vparam = if ($ver -eq '10') { 'win10' } else { 'win11' }
+                $tryNon = Read-Host 'Try non-interactive mode if supported? [y/N]'
+                $trySwitch = ($tryNon -match '^[Yy]')
+                if ($trySwitch) {
+                    $adv = Read-Host 'Advanced options? (Release/Edition/Arch) [Y/n]'
+                    if ($adv -notmatch '^[Nn]') {
+                        $rel = Read-Host ("Release (default: {0})" -f (if ($vparam -eq 'win10') { '22H2' } else { '23H2' }))
+                        $ed  = Read-Host 'Edition (default: Pro)'
+                        $arch= Read-Host 'Architecture (default: x64)'
+                        $cfg = Get-RiDConfig
+                        if (-not $cfg.Iso) { $cfg.Iso = @{} }
+                        if ($rel) { $cfg.Iso.Release = $rel }
+                        if ($ed)  { $cfg.Iso.Edition = $ed }
+                        if ($arch){ $cfg.Iso.Arch    = $arch }
+                        if ($rel -or $ed -or $arch) { Set-RiDConfig -Config $cfg }
+                    }
+                }
+                $iso = Invoke-RiDFidoDownload -Version $vparam -Language $lang -Destination $dest -TryNonInteractive:$trySwitch
+                if ($iso) { return $iso } else { return $null }
+            } catch { Write-Error $_; return $null }
         }
         default {
             Write-Host 'Cancelling ISO helper.'

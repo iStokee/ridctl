@@ -17,11 +17,32 @@ function Invoke-RiDVmCliCommand {
     #>
     [CmdletBinding()] param(
         [Parameter(Mandatory=$true)] [string]$VmCliPath,
-        [Parameter(Mandatory=$true)] [string]$Arguments
+        [Parameter(Mandatory=$true)] [string]$Arguments,
+        [Parameter()] [switch]$Apply,
+        [Parameter()] [switch]$CaptureOutput
     )
-    Write-Host "[vmcli] $VmCliPath $Arguments" -ForegroundColor DarkCyan
-    # TODO: Use Start-Process to invoke vmcli with arguments and handle errors.
-    return $null
+    if (-not $Apply) {
+        Write-Host "[vmcli] $VmCliPath $Arguments" -ForegroundColor DarkCyan
+        return $null
+    }
+    try {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $VmCliPath
+        $psi.Arguments = $Arguments
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.UseShellExecute = $false
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $stdout = $proc.StandardOutput.ReadToEnd()
+        $stderr = $proc.StandardError.ReadToEnd()
+        $proc.WaitForExit()
+        if ($CaptureOutput) { return [pscustomobject]@{ ExitCode = $proc.ExitCode; Stdout = $stdout; Stderr = $stderr } }
+        if ($proc.ExitCode -ne 0) { Write-Error ("vmcli exited with code {0}: {1}" -f $proc.ExitCode, $stderr) }
+        return $proc.ExitCode
+    } catch {
+        Write-Error "Failed to invoke vmcli: $_"
+        return $null
+    }
 }
 
 function New-RiDVmCliVM {
@@ -42,10 +63,16 @@ function New-RiDVmCliVM {
         [Parameter(Mandatory=$true)] [int]$CpuCount,
         [Parameter(Mandatory=$true)] [int]$MemoryMB,
         [Parameter(Mandatory=$true)] [int]$DiskGB,
-        [Parameter()] [string]$IsoPath
+        [Parameter()] [string]$IsoPath,
+        [Parameter()] [switch]$Apply
     )
     Write-Host "Preparing to create VM '$Name' at '$DestinationPath' using vmcli." -ForegroundColor Cyan
-    $args = "vm create --name \"$Name\" --cpus $CpuCount --memory $MemoryMB --disk-size $DiskGB"
-    if ($IsoPath) { $args += " --iso \"$IsoPath\"" }
-    Invoke-RiDVmCliCommand -VmCliPath $VmCliPath -Arguments $args
+    if (-not (Test-Path -Path $DestinationPath)) { try { New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null } catch { Write-Error "Failed to create destination: $_"; return $null } }
+    $args = ('vm create --name "{0}" --cpus {1} --memory {2} --disk-size {3} --path "{4}"' -f $Name, $CpuCount, $MemoryMB, $DiskGB, $DestinationPath)
+    if ($IsoPath) { $args += (' --iso "{0}"' -f $IsoPath) }
+    $rc = Invoke-RiDVmCliCommand -VmCliPath $VmCliPath -Arguments $args -Apply:$Apply
+    if ($Apply -and $rc -ne 0) { Write-Error 'vmcli create failed.'; return $null }
+    # Return expected VMX path if created under destination
+    $vmx = Join-Path -Path $DestinationPath -ChildPath ('{0}.vmx' -f $Name)
+    return $vmx
 }

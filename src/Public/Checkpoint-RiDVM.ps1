@@ -18,6 +18,7 @@ function Checkpoint-RiDVM {
         [Parameter(Mandatory=$true)] [string]$SnapshotName,
         [Parameter()] [switch]$Apply
     )
+    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to create snapshot.'

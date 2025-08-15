@@ -35,6 +35,6 @@ function Enable-RiDSharedFolder {
     Invoke-RiDVmrun -VmrunPath $VmrunPath -Command 'removeSharedFolder' -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $ShareName) -Apply:$Apply | Out-Null
     Invoke-RiDVmrun -VmrunPath $VmrunPath -Command 'addSharedFolder'    -Arguments @('"{0}"' -f $VmxPath, '"{0}"' -f $ShareName, '"{0}"' -f $HostPath) -Apply:$Apply | Out-Null
     if (-not $Apply) {
-        Write-Host 'Shared folder configuration via vmrun ran in dry‑run mode (no changes applied).' -ForegroundColor Yellow
+        Write-Host 'Shared folder configuration via vmrun ran in dry-run mode (no changes applied).' -ForegroundColor Yellow
     }
 }
