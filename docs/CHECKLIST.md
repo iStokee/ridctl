@@ -59,9 +59,9 @@
 - **How to test:** On a clean VM, run command end‑to‑end; verify tools installed and RiD extracted.
 
 ## M8 — Sync Engine v1 (Host ↔ Share)
-- [ ] Implement `Compare-RiDFiles` (timestamp/size/hash modes; default timestamp+size).
-- [ ] Implement `Invoke-RiDSync` with directions: `FromShare`, `ToShare`, `Bidirectional`; support `-DryRun`, `-ResolveConflicts`, `-LogPath`.
-- [ ] `Sync-RiDScripts` (public) prints concise summary and exit code; honors excludes from config.
+- [x] Implement `Compare-RiDFiles` (timestamp/size/hash modes; default timestamp+size).
+- [x] Implement `Invoke-RiDSync` with directions: `FromShare`, `ToShare`, `Bidirectional`; support `-DryRun`, `-ResolveConflicts`, `-LogPath`.
+- [x] `Sync-RiDScripts` (public) prints concise summary and exit code; honors excludes from config.
 - **How to test:** Create asymmetric files; run each direction with `-DryRun` (prints plan) and with `-Apply` (performs).
 
 ## M9 — Utilities Polish

@@ -21,8 +21,8 @@
    - Idempotency and validation
 
 5. Sync Engine
-   - Integrate `third_party/sync-scripts`
    - Unidirectional/bidirectional sync, dry-run, conflict strategies
+   - Honor excludes from config; concise summaries
    - Expand `Get-RiDStatus` coverage
 
 6. TUI + UX
@@ -107,3 +107,19 @@ See repository layout under `src/Public` and `src/Private` with helpers for vmru
 - M4: Shared folder provision/repair
 - M5: Sync v2 integration
 - M6: Polish & docs
+
+## Progress Update — 2025-08-16
+
+- Implemented Sync Engine v1:
+  - `Compare-RiDFiles` (timestamp+size default; hash option)
+  - `Invoke-RiDSync` (FromShare/ToShare/Bidirectional, `-DryRun`, `-ResolveConflicts`, `-LogPath`)
+  - `Sync-RiDScripts` wired to core and config (`Sync.Excludes`).
+- First‑run/defaults polish:
+  - Default shared folder host path `C:\RiDShare` (auto‑created on first run)
+  - Prompts show friendly values; Options menu normalization
+- Docs refreshed (README, USAGE) and checklist updated (M8 done).
+
+Next focus:
+- M7 — Guest configure polish + tests (Initialize‑RiDGuest)
+- M9 — Utilities polish for VM wrappers + smoke tests
+- M12 — Tests & CI (ScriptAnalyzer + Pester coverage)

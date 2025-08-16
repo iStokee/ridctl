@@ -1,17 +1,26 @@
 # RiD Control
 
 RiD is a PowerShell module and command‑line interface for managing
-virtual machines used for development workflows.  It consolidates
+virtual machines used for development workflows. It consolidates
 existing guides for provisioning a VMware Workstation guest and
-synchronising scripts between host and guest into a single tool.
+synchronising scripts between host and guest into a single tool with a
+menu‑driven UX.
 
 This repository contains the source code for the module as well as
-documentation, unit tests and build scripts. Some foundational
-capabilities (virtualization checks, native `-WhatIf/-Confirm` for
-`vmrun` start/stop/snapshot/shared folders) are implemented; the remaining
-areas are scaffolded pending future milestones. Refer to `USAGE.md`
-for a quick start guide, including registering existing VMs by name and
-using `-Name` with management commands for a better UX. The host menu includes an Options pane to configure defaults (download folder, ISO options, templates, shared folder, vmrun path), and a first‑run setup prompts for key values.
+documentation, unit tests and build scripts. The module includes:
+
+- Virtualization readiness checks (with actionable conflict summary).
+- ISO helper with Fido automation and optional non‑interactive mode.
+- VM operations via vmrun/vmcli (start/stop/snapshot; new VM via clone or fresh create).
+- Shared folder repair (host) and guest verification integration.
+- Sync v1 (host ↔ share): timestamp+size compare, dry‑run, bidirectional.
+- A first‑run setup that configures defaults and creates the default share path.
+
+Refer to `USAGE.md` for a quick start and examples. The host menu includes an Options pane to configure defaults (download folder, ISO options, templates, shared folder, vmrun path). First‑run prompts for key values and uses sensible defaults.
+
+Defaults: the shared folder host path is `C:\RiDShare` (created on first run if missing) and the shared folder name is `rid`.
+
+Public cmdlets support native `-WhatIf/-Confirm` (safe by default); private helpers may still use `-Apply` internally where noted.
 
 ## Registered VMs
 
@@ -24,3 +33,17 @@ In `Show-RiDMenu` (host), choose `7) Registered VMs` to:
 - See your registered list (or be prompted to register one if empty)
 - Select an index to Start, Stop, or Snapshot
 - Use `r` to register another or `u` to unregister
+
+## Quick Start
+
+```pwsh
+Import-Module ./src -Force
+Show-RiDMenu
+```
+
+Highlights:
+- First run configures defaults (Downloads folder, ISO defaults, `C:\RiDShare` share, templates, vmrun path) and creates the share directory if needed. Status cards reflect readiness (Shared Folder turns green when present).
+- Sync scripts from the host: `Sync-RiDScripts -ToShare -DryRun` then confirm with `-Confirm:$true` from the menu or cmdline.
+- Create a new VM via menu or `New-RiDVM` (auto chooses vmcli if available or vmrun clone fallback).
+
+See `docs/USAGE.md` for detailed flows (ISO helper, VM creation, share repair, guest init, and sync).

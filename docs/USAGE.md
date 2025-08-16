@@ -12,7 +12,7 @@ Import-Module ridctl
 Show-RiDMenu
 ```
 
-On first run, you’ll be prompted to configure a few defaults (download folder, shared folder name/path, templates, and optional vmrun path). You can change these anytime under the Options menu. You can also try these implemented
+On first run, you’ll be prompted to configure a few defaults (download folder, shared folder name/path, templates, and optional vmrun path). Defaults are pre-filled and formatted clearly. The shared folder host path defaults to `C:\RiDShare` and is created if missing. You can change these anytime under the Options menu. You can also try these implemented
 building blocks:
 
 - `Test-RiDVirtualization`: Runs host readiness checks and reports VT status and Windows feature conflicts.
@@ -110,10 +110,37 @@ ridctl captures Fido's `-GetUrl` output, downloads to your destination, and retu
 From `Show-RiDMenu` on host, select `8) Options` to view/edit settings grouped by:
 - ISO: `Iso.DefaultDownloadDir`, `Iso.FidoScriptPath`, `Iso.Release`, `Iso.Edition`, `Iso.Arch`
 - Templates: `Templates.DefaultVmx`, `Templates.DefaultSnapshot`
-- Shared Folder: `Share.Name`, `Share.HostPath`
+- Shared Folder: `Share.Name`, `Share.HostPath` (default `C:\RiDShare`)
 - VMware: `Vmware.vmrunPath`
 
 Changes are saved via `Set-RiDConfig` and used on subsequent runs.
+
+## Sync Scripts
+
+Synchronise files between your local working directory and the VMware shared folder.
+
+Defaults and config:
+- Shared folder host path defaults to `C:\RiDShare` (created on first run).
+- You can add default excludes in config at `Sync.Excludes` (wildcards on relative paths), e.g.:
+
+```pwsh
+$cfg = Get-RiDConfig
+if (-not $cfg['Sync']) { $cfg['Sync'] = @{} }
+$cfg['Sync']['Excludes'] = @('**/*.log','tmp/*','.git/**')
+Set-RiDConfig $cfg
+```
+
+Examples:
+- Dry-run, bidirectional (uses config excludes):
+  - `Sync-RiDScripts -Bidirectional -DryRun`
+- Apply from local to share (with confirmation):
+  - `Sync-RiDScripts -ToShare -Confirm:$true`
+- From share to local, with custom excludes and a log file:
+  - `Sync-RiDScripts -FromShare -Excludes '**/*.bak','node_modules/**' -LogPath 'C:\logs\rid-sync.txt' -Confirm:$true`
+
+Notes:
+- v1 copies files only; no deletions.
+- Conflict resolution: in bidirectional mode, add `-ResolveConflicts` to prefer the newer side; otherwise conflicts are skipped.
 ## About VMX Paths
 
 - A `.vmx` file is the VMware Workstation VM configuration file, usually located under your VM folder: `C:\VMs\MyVM\MyVM.vmx`.

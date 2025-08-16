@@ -26,7 +26,8 @@ function Show-RiDMenu {
 
     function _RunFirstRunWizard {
         try {
-            $cfg = Get-RiDConfig
+            # Build/normalize config so leaf values are strings
+            $cfg = Initialize-RiDConfig
             if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
             if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }
             if (-not $cfg['Share']) { $cfg['Share'] = @{} }
@@ -36,12 +37,13 @@ function Show-RiDMenu {
             Write-Host 'You can change these later under Options.' -ForegroundColor Yellow
 
             # ISO defaults
-            $curIsoDir = $cfg['Iso']['DefaultDownloadDir']
+            function _S([object]$v) { if ($null -eq $v) { return '' } if ($v -is [System.Collections.IDictionary] -or ($v -is [System.Collections.IEnumerable] -and -not ($v -is [string]))) { return (ConvertTo-Json -InputObject $v -Depth 5 -Compress) } return [string]$v }
+            $curIsoDir = _S $cfg['Iso']['DefaultDownloadDir']
             $ans = Read-Host ("ISO download directory [{0}]" -f $curIsoDir)
             if ($ans) { $cfg['Iso']['DefaultDownloadDir'] = $ans }
-            $curRel = if ($cfg['Iso']['Release']) { $cfg['Iso']['Release'] } else { '23H2' }
-            $curEd  = if ($cfg['Iso']['Edition']) { $cfg['Iso']['Edition'] } else { 'Pro' }
-            $curAr  = if ($cfg['Iso']['Arch'])    { $cfg['Iso']['Arch'] }    else { 'x64' }
+            $curRel = if (_S $cfg['Iso']['Release']) { _S $cfg['Iso']['Release'] } else { '23H2' }
+            $curEd  = if (_S $cfg['Iso']['Edition']) { _S $cfg['Iso']['Edition'] } else { 'Pro' }
+            $curAr  = if (_S $cfg['Iso']['Arch'])    { _S $cfg['Iso']['Arch'] }    else { 'x64' }
             $ans = Read-Host ("ISO Release (22H2/23H2/etc.) [{0}]" -f $curRel)
             if ($ans) { $cfg['Iso']['Release'] = $ans } elseif (-not $cfg['Iso']['Release']) { $cfg['Iso']['Release'] = $curRel }
             $ans = Read-Host ("ISO Edition (Home/Pro/...) [{0}]" -f $curEd)
@@ -50,28 +52,45 @@ function Show-RiDMenu {
             if ($ans) { $cfg['Iso']['Arch'] = $ans } elseif (-not $cfg['Iso']['Arch']) { $cfg['Iso']['Arch'] = $curAr }
 
             # Shared folder defaults
-            $curShare = if ($cfg['Share']['Name']) { $cfg['Share']['Name'] } else { 'rid' }
+            $curShare = if (_S $cfg['Share']['Name']) { _S $cfg['Share']['Name'] } else { 'rid' }
             $ans = Read-Host ("Shared folder name [{0}]" -f $curShare)
             if ($ans) { $cfg['Share']['Name'] = $ans } else { if (-not $cfg['Share']['Name']) { $cfg['Share']['Name'] = $curShare } }
-            $curHost = $cfg['Share']['HostPath']
+            $curHost = if (_S $cfg['Share']['HostPath']) { _S $cfg['Share']['HostPath'] } else { 'C:\\RiDShare' }
             $ans = Read-Host ("Shared folder host path [{0}]" -f $curHost)
-            if ($ans) { $cfg['Share']['HostPath'] = $ans }
+            if ($ans) { $cfg['Share']['HostPath'] = $ans } elseif (-not $cfg['Share']['HostPath']) { $cfg['Share']['HostPath'] = $curHost }
 
             # Templates defaults
-            $curTplVmx = $cfg['Templates']['DefaultVmx']
+            $curTplVmx = _S $cfg['Templates']['DefaultVmx']
             $ans = Read-Host ("Template VMX (for vmrun clone) [{0}]" -f $curTplVmx)
             if ($ans) { $cfg['Templates']['DefaultVmx'] = $ans }
-            $curTplSnap = $cfg['Templates']['DefaultSnapshot']
+            $curTplSnap = _S $cfg['Templates']['DefaultSnapshot']
             $ans = Read-Host ("Template snapshot name [{0}]" -f $curTplSnap)
             if ($ans) { $cfg['Templates']['DefaultSnapshot'] = $ans }
 
             # VMware tools paths
-            $curVmrun = $cfg['Vmware']['vmrunPath']
+            $curVmrun = _S $cfg['Vmware']['vmrunPath']
             $ans = Read-Host ("vmrun path (optional) [{0}]" -f $curVmrun)
             if ($ans) { $cfg['Vmware']['vmrunPath'] = $ans }
 
             Set-RiDConfig -Config $cfg
             Write-Host 'Defaults saved.' -ForegroundColor Cyan
+
+            # Friendly summary to avoid raw hashtable output
+            # _S already defined above
+            Write-Host 'Configured defaults:' -ForegroundColor Green
+            Write-Host ("  ISO: Dir={0}, Release={1}, Edition={2}, Arch={3}" -f (_S $cfg['Iso']['DefaultDownloadDir']), (_S $cfg['Iso']['Release']), (_S $cfg['Iso']['Edition']), (_S $cfg['Iso']['Arch']))
+            Write-Host ("  Share: Name={0}, HostPath={1}" -f (_S $cfg['Share']['Name']), (_S $cfg['Share']['HostPath']))
+            Write-Host ("  Templates: VMX={0}, Snapshot={1}" -f (_S $cfg['Templates']['DefaultVmx']), (_S $cfg['Templates']['DefaultSnapshot']))
+            Write-Host ("  VMware: vmrunPath={0}" -f (_S $cfg['Vmware']['vmrunPath']))
+
+            # Ensure default share directory exists if configured
+            try {
+                $hp = _S $cfg['Share']['HostPath']
+                if ($hp -and -not (Test-Path -LiteralPath $hp)) {
+                    New-Item -ItemType Directory -Path $hp -Force | Out-Null
+                    Write-Host ("Created shared folder directory: {0}" -f $hp) -ForegroundColor Cyan
+                }
+            } catch { Write-Verbose $_ }
         } catch { Write-Error $_ }
     }
 
@@ -85,7 +104,8 @@ function Show-RiDMenu {
         }
         
         try {
-            $cfg = Get-RiDConfig
+            # Normalize and ensure defaults exist for display
+            $cfg = Initialize-RiDConfig
             if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
             if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }
             if (-not $cfg['Share']) { $cfg['Share'] = @{} }
@@ -125,7 +145,7 @@ function Show-RiDMenu {
                     '9'  { $v = Read-Host 'Set Share.HostPath';         if ($v) { $cfg['Share']['HostPath'] = $v } }
                     '10' { $v = Read-Host 'Set Vmware.vmrunPath';       if ($v) { $cfg['Vmware']['vmrunPath'] = $v } }
                     'S'  { try { Set-RiDConfig -Config $cfg; Write-Host 'Configuration saved.' -ForegroundColor Cyan } catch { Write-Error $_ }; _Pause }
-                    'R'  { $cfg = Get-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} } }
+                    'R'  { $cfg = Initialize-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} } }
                     'P'  {
                         try {
                             $paths = _Get-RiDConfigPaths
@@ -139,6 +159,13 @@ function Show-RiDMenu {
                         Write-Host 'Reset configuration will delete one or more config files and rebuild defaults.' -ForegroundColor Yellow
                         $scope = Read-Host 'Scope [Local/User/System/All] (default Local)'
                         if (-not $scope) { $scope = 'Local' }
+                        # Accept initial letter shortcuts (l/u/s/a)
+                        switch ($scope.ToLower()) {
+                            'l' { $scope = 'Local' }
+                            'u' { $scope = 'User' }
+                            's' { $scope = 'System' }
+                            'a' { $scope = 'All' }
+                        }
                         $confirm = Read-Host ("Are you sure you want to reset '{0}'? This will remove the file(s). [y/N]" -f $scope)
                         if ($confirm -match '^[Yy]') {
                             try { Reset-RiDConfig -Scope $scope -Confirm:$true | Out-Null; Write-Host 'Configuration reset and defaults rebuilt.' -ForegroundColor Cyan } catch { Write-Error $_ }
@@ -170,7 +197,7 @@ function Show-RiDMenu {
             Write-Host '  1) Virtualization readiness check'
             Write-Host '  2) Create new VM (scaffold)'
             Write-Host '  3) Provision/Repair shared folder (vmrun)'
-            Write-Host '  4) Sync scripts (scaffold)'
+            Write-Host '  4) Sync scripts'
             Write-Host '  5) ISO helper'
             Write-Host '  6) Utilities (power/snapshot)'
             Write-Host '  7) Registered VMs'
@@ -440,7 +467,7 @@ function Show-RiDMenu {
         } else {
             Write-Host 'Select an action (Guest VM):' -ForegroundColor Green
             Write-Host '  1) Configure VM in Windows (install Java, RiD)'
-            Write-Host '  2) Sync scripts (scaffold)'
+            Write-Host '  2) Sync scripts'
             Write-Host '  X) Exit'
             $choice = Read-Host 'Enter choice'
             switch ($choice.ToUpper()) {

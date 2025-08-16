@@ -93,9 +93,9 @@ function Get-RiDDefaultConfig {
     $def['Iso'] = @{
         'DefaultDownloadDir' = $downloads
         'FidoScriptPath'     = ''
-        'Release'            = ''
-        'Edition'            = ''
-        'Arch'               = ''
+        'Release'            = '23H2'
+        'Edition'            = 'Pro'
+        'Arch'               = 'x64'
     }
     $def['Templates'] = @{
         'DefaultVmx'      = ''
@@ -103,7 +103,11 @@ function Get-RiDDefaultConfig {
     }
     $def['Share'] = @{
         'Name'     = 'rid'
-        'HostPath' = ''
+        'HostPath' = 'C:\\RiDShare'
+    }
+    $def['Sync'] = @{
+        'DefaultLocalPath' = ''
+        'Excludes'         = @()
     }
     $def['Vmware'] = @{
         'vmrunPath' = ''
@@ -245,7 +249,7 @@ function _Normalize-RiDConfig {
 
     $cfg = $Config.Clone()
 
-    foreach ($sec in @('Iso','Templates','Share','Vmware')) {
+    foreach ($sec in @('Iso','Templates','Share','Vmware','Sync')) {
         if (-not $cfg.ContainsKey($sec) -or -not ($cfg[$sec] -is [System.Collections.IDictionary])) { $cfg[$sec] = @{} }
     }
 
@@ -262,6 +266,18 @@ function _Normalize-RiDConfig {
     $cfg['Share']['HostPath'] = Coerce $cfg['Share']['HostPath']
 
     $cfg['Vmware']['vmrunPath'] = Coerce $cfg['Vmware']['vmrunPath']
+
+    # Sync section
+    $cfg['Sync']['DefaultLocalPath'] = Coerce $cfg['Sync']['DefaultLocalPath']
+    $ex = $cfg['Sync']['Excludes']
+    if ($null -eq $ex) { $cfg['Sync']['Excludes'] = @() }
+    elseif ($ex -is [System.Collections.IEnumerable] -and -not ($ex -is [string])) {
+        $list = @()
+        foreach ($i in $ex) { $list += (Coerce $i) }
+        $cfg['Sync']['Excludes'] = $list
+    } else {
+        $cfg['Sync']['Excludes'] = @((Coerce $ex))
+    }
 
     # Always make Vms an array
     $vms = $cfg['Vms']
