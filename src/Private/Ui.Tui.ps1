@@ -104,7 +104,7 @@ function Write-RiDReadinessBanner {
         $color = 'Green'
     } else {
         if (-not $vmwOk) {
-            $parts += 'VMware Workstation missing — install to continue.'
+            $parts += 'VMware Workstation missing - install to continue.'
             $color = 'Red'
         }
         if (-not $virtOk) {

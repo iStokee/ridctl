@@ -95,7 +95,8 @@ function Test-RiDVirtualization {
             Write-Host 'Download: https://www.vmware.com/products/workstation-pro.html' -ForegroundColor Yellow
             if ($exitCode -lt 2) { $exitCode = 2 }
         } else {
-            Write-Host ("VMware Workstation detected{0}." -f (if ($wk.Version) { " (v$($wk.Version))" } else { '' })) -ForegroundColor Green
+            $suffix = if ($wk.Version) { " (v$($wk.Version))" } else { '' }
+            Write-Host ("VMware Workstation detected{0}." -f $suffix) -ForegroundColor Green
         }
     } catch { }
 

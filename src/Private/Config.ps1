@@ -85,9 +85,8 @@ function Set-RiDConfig {
 
 function Get-RiDDefaultConfig {
     [CmdletBinding()] param()
-    $downloads = $null
-    try { $downloads = Join-Path -Path $env:USERPROFILE -ChildPath 'Downloads' } catch { }
-    if (-not $downloads -or -not (Test-Path -Path $downloads)) { $downloads = $env:USERPROFILE }
+    # Default ISO download directory (consistent across app)
+    $downloads = 'C:\\ISO'
     $def = @{}
     $def['Vms'] = @()
     $def['Iso'] = @{

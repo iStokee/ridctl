@@ -20,7 +20,26 @@ building blocks:
 - `Stop-RiDVM -VmxPath <path> [-Hard] -WhatIf` or `-Confirm:$true`: Preview or confirm powering off a VM via `vmrun`.
 - `Checkpoint-RiDVM -VmxPath <path> -SnapshotName <name> -WhatIf` or `-Confirm:$true`: Preview or confirm taking a snapshot via `vmrun`.
 - `Repair-RiDSharedFolder -VmxPath <path> -ShareName <name> -HostPath <path> -WhatIf` or `-Confirm:$true`: Preview or confirm enabling/configuring a shared folder via `vmrun`.
- - `Initialize-RiDGuest [-InstallJava] [-RiDUrl <url>] [-Destination <path>]`: Installs 7‑Zip (and optionally Java), downloads the RiD archive, and extracts it inside the guest.
+- `Initialize-RiDGuest [-InstallJava] [-RiDUrl <url>] [-Destination <path>] [-NoDownload] [-ArchivePath <file>]`: Installs 7‑Zip (and optionally Java), then either downloads the RiD archive or uses a pre‑seeded local archive and extracts it inside the guest.
+
+Guest helper menu (run inside VM):
+- `Open-RiDGuestHelper`: Interactive submenu to:
+  - Install 7‑Zip
+  - Install Java JRE (Temurin 17)
+  - Install Chocolatey (package manager)
+  - Install/Update winget (opens Microsoft Store App Installer)
+  - Set up RiD (download or use pre‑seeded archive)
+  - Download/launch RuneScape installers (RS3/OSRS; Jagex Launcher or Classic)
+  Also accessible via `Show-RiDMenu` → Guest.
+
+Note: The default ISO download directory across ridctl is `C:\\ISO`. You can change this in Options under `Iso.DefaultDownloadDir`.
+
+## Status & Checklist
+
+- `Show-RiDChecklist` opens a consolidated status view with colorized items and safe re‑run actions. It adapts to Host vs Guest:
+  - Host: Virtualization readiness, VMware presence/version, vmrun/vmcli paths, shared folder host path, template VMX/snapshot configured and exists, ISO download directory, Fido script path/availability, registered VM count. Actions to re‑run virtualization test, open ISO helper, repair shared folder, sync, or install/update Fido.
+  - Guest: Admin state, winget/choco/BITS availability, TLS enabled, 7‑Zip/Java presence, RiD folder exists, shared folder UNC. Actions to install Chocolatey, install/update winget (App Installer), install 7‑Zip/Java, or open the Guest Software Helper.
+  - Accessible via `Show-RiDMenu` on both Host (option 9) and Guest (option 3).
 
 Registered VMs (friendlier than typing .vmx paths):
 

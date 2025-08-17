@@ -71,6 +71,9 @@ function New-RiDVM {
                 if ($ans -notmatch '^[Nn]') {
                     try { Register-RiDVM -Name $Name -VmxPath $vmx -Confirm:$true } catch { Write-Error $_ }
                 }
+                Write-Host 'Next steps:' -ForegroundColor Green
+                Write-Host '  - Power on the VM and complete Windows OOBE.' -ForegroundColor DarkGray
+                Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray
             }
         }
         'vmrun' {
@@ -130,6 +133,9 @@ function New-RiDVM {
                 if ($ans -notmatch '^[Nn]') {
                     try { Register-RiDVM -Name $Name -VmxPath $destVmx -Confirm:$true } catch { Write-Error $_ }
                 }
+                Write-Host 'Next steps:' -ForegroundColor Green
+                Write-Host '  - Power on the VM and complete Windows OOBE.' -ForegroundColor DarkGray
+                Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray
             } else {
                 Write-Host ("Planned clone and VMX updates printed (dry-run){0}." -f $isoText) -ForegroundColor Yellow
             }

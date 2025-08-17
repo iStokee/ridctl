@@ -54,9 +54,9 @@
 - **How to test:** Break the share, run `Repair-RiDSharedFolder ... -WhatIf` to preview then `-Confirm:$true` to apply; verify guest sees the path; status turns green.
 
 ## M7 — Guest Configure (Java + RiD)
-- [ ] `Initialize-RiDGuest` installs 7‑Zip, optionally Java; downloads RiD archive; extracts to target; prints launch instructions.
-- [ ] Add `-NoDownload` to use a pre‑seeded archive path.
-- **How to test:** On a clean VM, run command end‑to‑end; verify tools installed and RiD extracted.
+- [x] `Initialize-RiDGuest` installs 7‑Zip, optionally Java; downloads RiD archive; extracts to target; prints launch instructions.
+- [x] Add `-NoDownload` to use a pre‑seeded archive path.
+- **How to test:** On a clean VM, run command end‑to‑end; verify tools installed and RiD extracted. Unit test covers `-NoDownload` flow with mocks.
 
 ## M8 — Sync Engine v1 (Host ↔ Share)
 - [x] Implement `Compare-RiDFiles` (timestamp/size/hash modes; default timestamp+size).

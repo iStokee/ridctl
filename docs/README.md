@@ -18,11 +18,13 @@ documentation, unit tests and build scripts. The module includes:
 - Shared folder repair (host) and guest verification integration.
 - Sync v1 (host ↔ share): timestamp+size compare, dry‑run, bidirectional.
 - A first‑run setup that configures defaults and creates the default share path.
+- Guest Software Helper to bootstrap 7‑Zip, Java JRE, package managers (Chocolatey/winget), RiD setup, and RuneScape installers.
+- Status & Checklist view for host and guest with safe, re‑runnable actions.
 
 Refer to `USAGE.md` for a quick start and examples. The host menu includes an Options pane to configure defaults (download folder, ISO options, templates, shared folder, vmrun path, and VM defaults such as destination base, CPU, memory, disk, and method). First‑run prompts for key values and uses sensible defaults.
 ISO defaults (`Iso.Release`, `Iso.Edition`, `Iso.Arch`) are used by the automated helper and can be set via Options or at runtime.
 
-Defaults: the shared folder host path is `C:\RiDShare` (created on first run if missing) and the shared folder name is `rid`.
+Defaults: the shared folder host path is `C:\RiDShare` (created on first run if missing) and the shared folder name is `rid`. The default ISO download directory is `C:\ISO`.
 
 Public cmdlets support native `-WhatIf/-Confirm` (safe by default); private helpers may still use `-Apply` internally where noted.
 
@@ -64,7 +66,7 @@ Show-RiDMenu
 ```
 
 Highlights:
-- First run configures defaults (Downloads folder, ISO defaults, `C:\RiDShare` share, templates, vmrun path, and VM defaults) and creates the share directory if needed. Status cards reflect readiness (Shared Folder turns green when present).
+- First run configures defaults (ISO download dir `C:\ISO`, ISO defaults, `C:\RiDShare` share, templates, vmrun path, and VM defaults) and creates directories if needed. Status cards reflect readiness (Shared Folder turns green when present).
 - Sync scripts from the host: `Sync-RiDScripts -ToShare -DryRun` then confirm with `-Confirm:$true` from the menu or cmdline.
 - Create a new VM via menu or `New-RiDVM` (auto chooses vmcli if available or vmrun clone fallback). The menu pre-fills values from `VmDefaults` and suggests `C:\VMs\<Name>` as the destination.
 

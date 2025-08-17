@@ -131,4 +131,11 @@ Next focus:
   - First‑run wizard and Options menu can set VM defaults
   - Host menu “Create new VM” uses saved defaults and suggests destination path
 - Tool detection:
-  - Honors configured `Vmware.vmrunPath` when resolving `vmrun`
+ - Honors configured `Vmware.vmrunPath` when resolving `vmrun`
+ - Guest bootstrapping:
+   - Guest Software Helper added with installers for 7‑Zip, Java JRE, RuneScape; package manager bootstraps for Chocolatey and winget
+   - Preflight checks (Admin, winget/choco/BITS/TLS, download dir)
+ - Status & Checklist:
+   - Added `Show-RiDChecklist` with host/guest adaptive view and safe re‑run actions; wired into menus (Host 9, Guest 3)
+ - Guest init:
+   - `Initialize-RiDGuest` now supports `-NoDownload` and `-ArchivePath` for pre‑seeded archives

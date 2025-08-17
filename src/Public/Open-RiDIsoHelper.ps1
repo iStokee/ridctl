@@ -30,9 +30,9 @@ function Open-RiDIsoHelper {
     try {
         $cfg = Initialize-RiDConfig
         if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
-        $defaultDir = if (_S $cfg['Iso']['DefaultDownloadDir']) { _S $cfg['Iso']['DefaultDownloadDir'] } else { try { Join-Path $env:USERPROFILE 'Downloads' } catch { $env:USERPROFILE } }
+        $defaultDir = if (_S $cfg['Iso']['DefaultDownloadDir']) { _S $cfg['Iso']['DefaultDownloadDir'] } else { 'C:\\ISO' }
         # Fallback if still empty or invalid
-        if (-not $defaultDir) { try { $defaultDir = (Resolve-Path '.').Path } catch { $defaultDir = $pwd.Path } }
+        if (-not $defaultDir) { $defaultDir = 'C:\\ISO' }
 
         while ($true) {
             Clear-Host

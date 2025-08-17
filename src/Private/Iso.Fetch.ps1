@@ -14,12 +14,9 @@ function Install-RiDFido {
         [Parameter()] [switch]$PersistConfig,
         [Parameter()] [switch]$Apply
     )
-    # Default destination under repo third_party\fido
+    # Default destination under C:\ISO\fido for a known location
     if (-not $DestinationDir) {
-        $privateDir = $PSScriptRoot
-        $moduleRoot = Split-Path -Path $privateDir -Parent  # src
-        $repoRoot   = Split-Path -Path $moduleRoot -Parent
-        $DestinationDir = Join-Path -Path $repoRoot -ChildPath 'third_party\fido'
+        $DestinationDir = Join-Path -Path 'C:\\ISO' -ChildPath 'fido'
     }
     # Prefer canonical file name used by upstream: Fido.ps1
     $targetPath = Join-Path -Path $DestinationDir -ChildPath 'Fido.ps1'

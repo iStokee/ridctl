@@ -30,13 +30,26 @@ function Initialize-RiDGuest {
         [Parameter()] [string]$RiDUrl,
         [Parameter()] [string]$Destination = (Join-Path $env:USERPROFILE 'RiD'),
         [Parameter()] [switch]$InstallJava,
-        [Parameter()] [switch]$Force
+        [Parameter()] [switch]$Force,
+        [Parameter()] [switch]$NoDownload,
+        [Parameter()] [string]$ArchivePath
     )
+
+    # Ensure TLS 1.2+ for downloads
+    try {
+        $proto = [Net.ServicePointManager]::SecurityProtocol
+        $new = [Net.SecurityProtocolType]::Tls12
+        try { $new = $new -bor [Net.SecurityProtocolType]::Tls13 } catch { }
+        [Net.ServicePointManager]::SecurityProtocol = $proto -bor $new
+    } catch {}
 
     # Ensure we are inside a VM (best-effort)
     if (-not (Get-RiDHostGuestInfo)) {
         Write-Warning 'Initialize-RiDGuest is intended to run inside a guest VM. Continuing anyway.'
     }
+
+    # Suggest elevation if not admin
+    try { if (-not (Test-RiDAdmin)) { Write-Host 'Note: Some installs may require elevation. Run PowerShell as Administrator for best results.' -ForegroundColor Yellow } } catch {}
 
     # Determine RiD download URL
     if (-not $RiDUrl) {
@@ -75,14 +88,27 @@ function Initialize-RiDGuest {
         _Install-Java | Out-Null
     }
 
-    # Download RiD archive
-    $tempFile = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('RiD_' + [System.Guid]::NewGuid().ToString('N') + '.rar')
-    Write-Host ("Downloading RiD archive from {0}..." -f $RiDUrl) -ForegroundColor Cyan
-    try {
-        Invoke-WebRequest -Uri $RiDUrl -OutFile $tempFile -UseBasicParsing -ErrorAction Stop
-    } catch {
-        Write-Error ("Failed to download RiD archive: {0}" -f $_)
-        return 1
+    # Obtain RiD archive path (download or use existing)
+    $tempFile = $null
+    if ($NoDownload) {
+        # Prefer provided path; otherwise prompt the user to pick a local file
+        if (-not $ArchivePath) {
+            try {
+                $ArchivePath = Show-RiDOpenFileDialog -Filter 'RiD archive (*.zip;*.7z;*.rar)|*.zip;*.7z;*.rar|All files (*.*)|*.*' -Title 'Select RiD archive file'
+            } catch { }
+        }
+        if (-not $ArchivePath) { Write-Error 'No archive path provided or selected with -NoDownload.'; return 1 }
+        if (-not (Test-Path -LiteralPath $ArchivePath)) { Write-Error ("Archive not found: {0}" -f $ArchivePath); return 1 }
+        $tempFile = $ArchivePath
+    } else {
+        $tempFile = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('RiD_' + [System.Guid]::NewGuid().ToString('N') + '.rar')
+        Write-Host ("Downloading RiD archive from {0}..." -f $RiDUrl) -ForegroundColor Cyan
+        try {
+            Invoke-WebRequest -Uri $RiDUrl -OutFile $tempFile -UseBasicParsing -ErrorAction Stop
+        } catch {
+            Write-Error ("Failed to download RiD archive: {0}" -f $_)
+            return 1
+        }
     }
 
     # Extract with 7z
@@ -95,7 +121,10 @@ function Initialize-RiDGuest {
         Write-Error ("Failed to extract RiD: {0}" -f $_)
         return 1
     } finally {
-        try { Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue } catch {}
+        # Only clean up if we downloaded a temporary file
+        if (-not $NoDownload) {
+            try { if ($tempFile -and (Test-Path -LiteralPath $tempFile)) { Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue } } catch {}
+        }
     }
 
     Write-Host 'RiD guest initialization complete.' -ForegroundColor Green

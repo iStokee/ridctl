@@ -39,6 +39,22 @@ function Show-RiDMenu {
                 Write-Host ("Created shared folder directory: {0}" -f $hp) -ForegroundColor Cyan
             }
 
+            # Ensure ISO download directory and Fido subdirectory exist
+            try {
+                $isoDir = $null
+                try { $isoDir = [string]$cfg['Iso']['DefaultDownloadDir'] } catch { }
+                if (-not $isoDir) { $isoDir = 'C:\\ISO' }
+                if ($isoDir -and -not (Test-Path -LiteralPath $isoDir)) {
+                    New-Item -ItemType Directory -Path $isoDir -Force | Out-Null
+                    Write-Host ("Created ISO download directory: {0}" -f $isoDir) -ForegroundColor Cyan
+                }
+                $fidoDir = Join-Path -Path $isoDir -ChildPath 'fido'
+                if (-not (Test-Path -LiteralPath $fidoDir)) {
+                    New-Item -ItemType Directory -Path $fidoDir -Force | Out-Null
+                    Write-Host ("Prepared Fido script directory: {0}" -f $fidoDir) -ForegroundColor Cyan
+                }
+            } catch { Write-Verbose $_ }
+
             $cfg['State']['FirstRunCompleted'] = 'true'
             Set-RiDConfig -Config $cfg | Out-Null
             Write-Host 'Defaults initialized and saved.' -ForegroundColor Cyan
@@ -131,6 +147,18 @@ function Show-RiDMenu {
                 if ($hp -and -not (Test-Path -LiteralPath $hp)) {
                     New-Item -ItemType Directory -Path $hp -Force | Out-Null
                     Write-Host ("Created shared folder directory: {0}" -f $hp) -ForegroundColor Cyan
+                }
+                $isoDir = _S $cfg['Iso']['DefaultDownloadDir']
+                if ($isoDir -and -not (Test-Path -LiteralPath $isoDir)) {
+                    New-Item -ItemType Directory -Path $isoDir -Force | Out-Null
+                    Write-Host ("Created ISO download directory: {0}" -f $isoDir) -ForegroundColor Cyan
+                }
+                if ($isoDir) {
+                    $fidoDir = Join-Path -Path $isoDir -ChildPath 'fido'
+                    if (-not (Test-Path -LiteralPath $fidoDir)) {
+                        New-Item -ItemType Directory -Path $fidoDir -Force | Out-Null
+                        Write-Host ("Prepared Fido script directory: {0}" -f $fidoDir) -ForegroundColor Cyan
+                    }
                 }
             } catch { Write-Verbose $_ }
         } catch { Write-Error $_ }
@@ -265,6 +293,7 @@ function Show-RiDMenu {
             Write-Host '  6) Utilities (power/snapshot)'
             Write-Host '  7) Registered VMs'
             Write-Host '  8) Options'
+            Write-Host '  9) Status & Checklist'
             Write-Host '  X) Exit'
             $choice = Read-Host 'Enter choice'
             switch ($choice.ToUpper()) {
@@ -317,7 +346,8 @@ function Show-RiDMenu {
                         $defaultVmx = $null
                         if ($reg -and $reg.Count -gt 0) { $first = $reg | Where-Object { $_.Exists } | Select-Object -First 1; if ($first) { $defaultVmx = $first.VmxPath } }
                         if (-not $defaultVmx) { $tpl = $cfg['Templates']['DefaultVmx']; if ($tpl -and (Test-Path -LiteralPath $tpl)) { $defaultVmx = $tpl } }
-                        $vmx  = Read-Host ((if ($defaultVmx) { "Path to VMX [{0}]" -f $defaultVmx } else { 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)' }))
+                        $vmxPrompt = if ($defaultVmx) { "Path to VMX [{0}]" -f $defaultVmx } else { 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)' }
+                        $vmx  = Read-Host $vmxPrompt
                         if (-not $vmx -and $defaultVmx) { $vmx = $defaultVmx }
                         $defShare = if ($cfg['Share'] -and $cfg['Share']['Name']) { [string]$cfg['Share']['Name'] } else { 'rid' }
                         $name = Read-Host ("Shared folder name [{0}]" -f $defShare)
@@ -549,27 +579,20 @@ function Show-RiDMenu {
                     _Pause
                 }
                 '8' { _ShowOptionsMenu }
+                '9' { try { Show-RiDChecklist } catch { Write-Error $_ } }
                 'X' { return }
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }
         } else {
             Write-Host 'Select an action (Guest VM):' -ForegroundColor Green
-            Write-Host '  1) Configure VM in Windows (install Java, RiD)'
+            Write-Host '  1) Guest software helper (7-Zip, Java, RiD, RuneScape)'
             Write-Host '  2) Sync scripts'
+            Write-Host '  3) Status & Checklist'
             Write-Host '  X) Exit'
             $choice = Read-Host 'Enter choice'
             switch ($choice.ToUpper()) {
                 '1' {
-                    try {
-                        $instJava = Read-Host 'Install Java? [Y/n]'
-                        $doJava = -not ($instJava -match '^[Nn]')
-                        $url = Read-Host 'Override RiD URL (blank to use default)'
-                        if ($url) {
-                            Initialize-RiDGuest -InstallJava:($doJava) -RiDUrl $url
-                        } else {
-                            Initialize-RiDGuest -InstallJava:($doJava)
-                        }
-                    } catch { Write-Error $_ }
+                    try { Open-RiDGuestHelper } catch { Write-Error $_ }
                     _Pause
                 }
                 '2' {
@@ -585,6 +608,7 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
+                '3' { try { Show-RiDChecklist } catch { Write-Error $_ }; _Pause }
                 'X' { return }
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }

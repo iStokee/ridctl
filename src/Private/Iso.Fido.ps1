@@ -16,6 +16,10 @@ function Get-RiDFidoScriptPath {
     if ($cfg['Iso'] -and $cfg['Iso']['FidoScriptPath'] -and (Test-Path -Path $cfg['Iso']['FidoScriptPath'])) {
         return $cfg['Iso']['FidoScriptPath']
     }
+    # Check well-known location first: C:\\ISO\\fido\\Fido.ps1
+    $isoFido = 'C:\\ISO\\fido\\Fido.ps1'
+    try { if (Test-Path -Path $isoFido) { return $isoFido } } catch { }
+
     # Default: third_party\fido\Fido.ps1 (preferred) relative to repo root; fallback to Get-WindowsIso.ps1
     $repoRoot = $null
     try {
@@ -53,9 +57,7 @@ function Invoke-RiDFidoDownload {
         if ($Destination.ContainsKey('DefaultDownloadDir')) { $Destination = [string]$Destination['DefaultDownloadDir'] }
         else { $Destination = [string]$Destination }
     }
-    if (-not $Destination) {
-        try { $Destination = Join-Path -Path $env:USERPROFILE -ChildPath 'Downloads' } catch { $Destination = $env:USERPROFILE }
-    }
+    if (-not $Destination) { $Destination = 'C:\\ISO' }
     # Ensure destination exists
     if (-not (Test-Path -Path $Destination)) {
         try { New-Item -ItemType Directory -Path $Destination -Force | Out-Null } catch {}
