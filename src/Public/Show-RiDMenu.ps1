@@ -21,9 +21,7 @@ function Show-RiDMenu {
         Write-RiDStatusCards -Status $s
     }
 
-    function _Pause {
-        [void](Read-Host 'Press Enter to return to the menu')
-    }
+    function _Pause { Pause-RiD }
 
     function _ApplyFirstRunDefaults {
         try {
@@ -183,9 +181,7 @@ function Show-RiDMenu {
 
             while ($true) {
                 Clear-Host
-                _WriteBanner
-                Write-Host 'Options' -ForegroundColor Green
-                Write-Host '--------' -ForegroundColor Green
+                Write-RiDHeader -Title 'RiD Control > Options'
                 Write-Host '[ISO]' -ForegroundColor Cyan
                 Write-Host ("  1) DefaultDownloadDir = {0}" -f (_S $cfg['Iso']['DefaultDownloadDir']))
                 Write-Host ("  2) FidoScriptPath     = {0}" -f (_S $cfg['Iso']['FidoScriptPath']))
@@ -207,8 +203,8 @@ function Show-RiDMenu {
                 Write-Host (" 14) DiskGB              = {0}" -f (_S $cfg['VmDefaults']['DiskGB']))
                 Write-Host (" 15) Method              = {0}" -f (_S $cfg['VmDefaults']['Method']))
                 Write-Host ''
-                Write-Host '  S) Save   R) Reload   P) Paths   D) Reset Config   X) Back'
-                $sel = Read-Host 'Choose'
+                Write-Host '  S) Save   R) Reload   P) Paths   W) First-run Wizard   D) Reset Config   X) Back'
+                $sel = Read-Host 'Select an option'
                 switch ($sel.ToUpper()) {
                     '1'  { $v = Read-Host 'Set Iso.DefaultDownloadDir'; if ($v) { $cfg['Iso']['DefaultDownloadDir'] = $v } }
                     '2'  { $v = Read-Host 'Set Iso.FidoScriptPath';     if ($v) { $cfg['Iso']['FidoScriptPath'] = $v } }
@@ -236,6 +232,10 @@ function Show-RiDMenu {
                         } catch { Write-Error $_ }
                         _Pause
                     }
+                    'W'  {
+                        try { _RunFirstRunWizard } catch { Write-Error $_ }
+                        _Pause
+                    }
                     'D'  {
                         Write-Host 'Reset configuration will delete one or more config files and rebuild defaults.' -ForegroundColor Yellow
                         $scope = Read-Host 'Scope [Local/User/System/All] (default Local)'
@@ -249,7 +249,14 @@ function Show-RiDMenu {
                         }
                         $confirm = Read-Host ("Are you sure you want to reset '{0}'? This will remove the file(s). [y/N]" -f $scope)
                         if ($confirm -match '^[Yy]') {
-                            try { Reset-RiDConfig -Scope $scope -Confirm:$true | Out-Null; Write-Host 'Configuration reset and defaults rebuilt.' -ForegroundColor Cyan } catch { Write-Error $_ }
+                            try {
+                                Reset-RiDConfig -Scope $scope -Confirm:$true | Out-Null
+                                # Rebuild defaults to ensure a valid config exists
+                                $null = Initialize-RiDConfig
+                                Write-Host 'Configuration reset and defaults rebuilt.' -ForegroundColor Cyan
+                                # Offer to run the first-time wizard immediately
+                                if (Read-RiDYesNo -Prompt 'Run first-time setup wizard now?' -Default Yes) { _RunFirstRunWizard }
+                            } catch { Write-Error $_ }
                         } else { Write-Host 'Cancelled.' -ForegroundColor Yellow }
                         _Pause
                     }
@@ -266,12 +273,9 @@ function Show-RiDMenu {
         try { Initialize-RiDConfig | Out-Null } catch { }
         # Offer first-run onboarding only once, persisted via config State.FirstRunCompleted
         try {
-            $cfg = Get-RiDConfig
-            $firstRunCompleted = $false
-            if ($cfg -and $cfg['State'] -and $cfg['State']['FirstRunCompleted']) {
-                $firstRunCompleted = ([string]$cfg['State']['FirstRunCompleted']).ToLowerInvariant() -in @('true','1','yes','y')
-            }
-            if (-not $script:RiDFirstRunWizardDone -and (-not $firstRunCompleted -or $script:RiDConfigCreatedNew)) {
+            # Only offer first-time setup when a brand-new config is created this session.
+            # Do not prompt if any config file already exists to avoid overwriting.
+            if (-not $script:RiDFirstRunWizardDone -and $script:RiDConfigCreatedNew) {
                 $ans = Read-Host 'First-time setup: (D)efaults, (W)izard, or (S)kip? [D]'
                 if ($ans -match '^[Ww]') { _RunFirstRunWizard }
                 elseif ($ans -match '^[Ss]') { }
@@ -285,23 +289,17 @@ function Show-RiDMenu {
         $isVm = Get-RiDHostGuestInfo
         if (-not $isVm) {
             Write-Host 'Select an action (Host):' -ForegroundColor Green
-            Write-Host '  1) Virtualization readiness check'
-            Write-Host '  2) Create new VM (scaffold)'
-            Write-Host '  3) Provision/Repair shared folder (vmrun)'
-            Write-Host '  4) Sync scripts'
-            Write-Host '  5) ISO helper'
-            Write-Host '  6) Utilities (power/snapshot)'
-            Write-Host '  7) Registered VMs'
-            Write-Host '  8) Options'
-            Write-Host '  9) Status & Checklist'
+            Write-Host '  1) Create new VM'
+            Write-Host '  2) ISO Helper'
+            Write-Host '  3) Registered VMs'
+            Write-Host '  4) Shared Folder: Provision/Repair'
+            Write-Host '  5) Sync Scripts'
+            Write-Host '  6) Status & Checklist'
+            Write-Host '  7) Options'
             Write-Host '  X) Exit'
-            $choice = Read-Host 'Enter choice'
+            $choice = Read-Host 'Select an option'
             switch ($choice.ToUpper()) {
                 '1' {
-                    try { Test-RiDVirtualization -Detailed | Out-Null } catch { Write-Error $_ }
-                    _Pause
-                }
-                '2' {
                     try {
                         $cfg = Initialize-RiDConfig
                         if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} }
@@ -327,11 +325,9 @@ function Show-RiDMenu {
                         if (-not $method) { $method = $defMethod }
                         $iso  = Read-Host 'ISO path (leave blank to use helper)'
                         if (-not $iso) {
-                            $useHelper = Read-Host 'Launch ISO helper now? [Y/n]'
-                            if ($useHelper -notmatch '^[Nn]') { $iso = Open-RiDIsoHelper }
+                            if (Read-RiDYesNo -Prompt 'Launch ISO Helper now?' -Default Yes) { $iso = Open-RiDIsoHelper }
                         }
-                        $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                        if ($preview -match '^[Nn]') {
+                        if (Read-RiDYesNo -Prompt 'Apply changes?' -Default No) {
                             New-RiDVM -Name $name -DestinationPath $dest -CpuCount ([int]$cpu) -MemoryMB ([int]$mem) -DiskGB ([int]$disk) -IsoPath ($iso) -Method $method -Confirm:$true
                         } else {
                             New-RiDVM -Name $name -DestinationPath $dest -CpuCount ([int]$cpu) -MemoryMB ([int]$mem) -DiskGB ([int]$disk) -IsoPath ($iso) -Method $method -WhatIf
@@ -339,7 +335,7 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                '3' {
+                '4' {
                     try {
                         $cfg = Initialize-RiDConfig
                         $reg = @(Get-RiDVM)
@@ -355,14 +351,12 @@ function Show-RiDMenu {
                         $defHost = if ($cfg['Share'] -and $cfg['Share']['HostPath']) { [string]$cfg['Share']['HostPath'] } else { 'C:\\RiDShare' }
                         $host1 = Read-Host ("Host path to share [{0}]" -f $defHost)
                         if (-not $host1) { $host1 = $defHost }
-                        $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                        if ($preview -match '^[Nn]') {
+                        if (Read-RiDYesNo -Prompt 'Apply changes?' -Default No) {
                             Repair-RiDSharedFolder -VmxPath $vmx -ShareName $name -HostPath $host1 -Confirm:$true
                         } else {
                             Repair-RiDSharedFolder -VmxPath $vmx -ShareName $name -HostPath $host1 -WhatIf
                         }
-                        $verify = Read-Host 'Verify inside guest now? [y/N]'
-                        if ($verify -match '^[Yy]') {
+                        if (Read-RiDYesNo -Prompt 'Verify inside guest now?' -Default No) {
                             $gu = Read-Host 'Guest username'
                             $gp = Read-Host 'Guest password'
                             $ok = Test-RiDSharedFolder -VmxPath $vmx -ShareName $name -GuestUser $gu -GuestPassword $gp
@@ -371,11 +365,10 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                '4' {
+                '5' {
                     try {
                         $dir = Read-Host 'Direction: FromShare (F), ToShare (T) or Bidirectional (B) [B]'
-                        $dry = Read-Host 'Dry-run? [Y/n]'
-                        $isDry = -not ($dry -match '^[Nn]')
+                        $isDry = -not (Read-RiDYesNo -Prompt 'Apply changes?' -Default No)
                         switch ($dir.ToUpper()) {
                             'F' { Sync-RiDScripts -FromShare -DryRun:$isDry }
                             'T' { Sync-RiDScripts -ToShare -DryRun:$isDry }
@@ -384,132 +377,19 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                '5' {
+                '2' {
                     try {
                         $iso = Open-RiDIsoHelper
                         if ($iso) { Write-Host ("Selected ISO: {0}" -f $iso) -ForegroundColor Cyan }
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                '6' {
-                    try {
-                        Write-Host 'Utilities:' -ForegroundColor Green
-                        Write-Host '  a) Start VM'
-                        Write-Host '  b) Stop VM'
-                        Write-Host '  c) Snapshot VM'
-                        Write-Host '  x) Back'
-                        $u = Read-Host 'Choose'
-                        switch ($u.ToLower()) {
-                            'a' {
-                                $selName = $null; $selVmx = $null; $useReg = $false
-                                $vms = Get-RiDVM
-                                if ($vms -and $vms.Count -gt 0) {
-                                    $pick = Read-Host 'Choose from registered VMs? [Y/n]'
-                                    if ($pick -notmatch '^[Nn]') {
-                                        $i = 1
-                                        foreach ($vm in $vms) {
-                                            $exists = if ($vm.Exists) { 'Yes' } else { 'No' }
-                                            Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
-                                            $i++
-                                        }
-                                        $sel = Read-Host 'Select index [1]'
-                                        if (-not $sel) { $sel = '1' }
-                                        if ($sel -match '^[0-9]+$') {
-                                            $idx = [int]$sel
-                                            if ($idx -ge 1 -and $idx -le $vms.Count) {
-                                                $selName = $vms[$idx-1].Name
-                                                $selVmx  = $vms[$idx-1].VmxPath
-                                                $useReg = $true
-                                            }
-                                        }
-                                    }
-                                }
-                                if (-not $useReg) { $selVmx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)' }
-                                $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                                if ($useReg) {
-                                    if ($preview -match '^[Nn]') { Start-RiDVM -Name $selName -Confirm:$true } else { Start-RiDVM -Name $selName -WhatIf }
-                                } else {
-                                    if ($preview -match '^[Nn]') { Start-RiDVM -VmxPath $selVmx -Confirm:$true } else { Start-RiDVM -VmxPath $selVmx -WhatIf }
-                                }
-                            }
-                            'b' {
-                                $selName = $null; $selVmx = $null; $useReg = $false
-                                $vms = Get-RiDVM
-                                if ($vms -and $vms.Count -gt 0) {
-                                    $pick = Read-Host 'Choose from registered VMs? [Y/n]'
-                                    if ($pick -notmatch '^[Nn]') {
-                                        $i = 1
-                                        foreach ($vm in $vms) {
-                                            $exists = if ($vm.Exists) { 'Yes' } else { 'No' }
-                                            Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
-                                            $i++
-                                        }
-                                        $sel = Read-Host 'Select index [1]'
-                                        if (-not $sel) { $sel = '1' }
-                                        if ($sel -match '^[0-9]+$') {
-                                            $idx = [int]$sel
-                                            if ($idx -ge 1 -and $idx -le $vms.Count) {
-                                                $selName = $vms[$idx-1].Name
-                                                $selVmx  = $vms[$idx-1].VmxPath
-                                                $useReg = $true
-                                            }
-                                        }
-                                    }
-                                }
-                                if (-not $useReg) { $selVmx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)' }
-                                $hard = Read-Host 'Hard stop? [y/N]'
-                                $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                                if ($useReg) {
-                                    if ($preview -match '^[Nn]') { Stop-RiDVM -Name $selName -Hard:($hard -match '^[Yy]') -Confirm:$true } else { Stop-RiDVM -Name $selName -Hard:($hard -match '^[Yy]') -WhatIf }
-                                } else {
-                                    if ($preview -match '^[Nn]') { Stop-RiDVM -VmxPath $selVmx -Hard:($hard -match '^[Yy]') -Confirm:$true } else { Stop-RiDVM -VmxPath $selVmx -Hard:($hard -match '^[Yy]') -WhatIf }
-                                }
-                            }
-                            'c' {
-                                $selName = $null; $selVmx = $null; $useReg = $false
-                                $vms = Get-RiDVM
-                                if ($vms -and $vms.Count -gt 0) {
-                                    $pick = Read-Host 'Choose from registered VMs? [Y/n]'
-                                    if ($pick -notmatch '^[Nn]') {
-                                        $i = 1
-                                        foreach ($vm in $vms) {
-                                            $exists = if ($vm.Exists) { 'Yes' } else { 'No' }
-                                            Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
-                                            $i++
-                                        }
-                                        $sel = Read-Host 'Select index [1]'
-                                        if (-not $sel) { $sel = '1' }
-                                        if ($sel -match '^[0-9]+$') {
-                                            $idx = [int]$sel
-                                            if ($idx -ge 1 -and $idx -le $vms.Count) {
-                                                $selName = $vms[$idx-1].Name
-                                                $selVmx  = $vms[$idx-1].VmxPath
-                                                $useReg = $true
-                                            }
-                                        }
-                                    }
-                                }
-                                if (-not $useReg) { $selVmx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)' }
-                                $snap = Read-Host 'Snapshot name'
-                                $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                                if ($useReg) {
-                                    if ($preview -match '^[Nn]') { Checkpoint-RiDVM -Name $selName -SnapshotName $snap -Confirm:$true } else { Checkpoint-RiDVM -Name $selName -SnapshotName $snap -WhatIf }
-                                } else {
-                                    if ($preview -match '^[Nn]') { Checkpoint-RiDVM -VmxPath $selVmx -SnapshotName $snap -Confirm:$true } else { Checkpoint-RiDVM -VmxPath $selVmx -SnapshotName $snap -WhatIf }
-                                }
-                            }
-                            default { }
-                        }
-                    } catch { Write-Error $_ }
-                    _Pause
-                }
-                '7' {
+                '3' {
                     try {
                         $vms = Get-RiDVM
                         if (-not $vms -or $vms.Count -eq 0) {
                             Write-Host 'No VMs registered yet.' -ForegroundColor Yellow
-                            $doReg = Read-Host 'Register an existing VM now? [Y/n]'
-                            if ($doReg -notmatch '^[Nn]') {
+                            if (Read-RiDYesNo -Prompt 'Register an existing VM now?' -Default Yes) {
                                 $nm = Read-Host 'Friendly name'
                                 $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
                                 try { 
@@ -529,7 +409,7 @@ function Show-RiDMenu {
                             Write-Host '  r) Register another VM'
                             Write-Host '  u) Unregister a VM'
                             Write-Host '  x) Back'
-                            $sel = Read-Host 'Choose'
+                            $sel = Read-Host 'Select an option'
                             if ($sel -match '^[0-9]+$') {
                                 $idx = [int]$sel
                                 if ($idx -ge 1 -and $idx -le $vms.Count) {
@@ -539,21 +419,18 @@ function Show-RiDMenu {
                                     Write-Host '  b) Stop'
                                     Write-Host '  c) Snapshot'
                                     Write-Host '  x) Back'
-                                    $act = Read-Host 'Action'
+                                    $act = Read-Host 'Select an option'
                                     switch ($act.ToLower()) {
                                         'a' {
-                                            $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                                            if ($preview -match '^[Nn]') { Start-RiDVM -Name $vm.Name -Confirm:$true } else { Start-RiDVM -Name $vm.Name -WhatIf }
+                                            if (Read-RiDYesNo -Prompt 'Apply changes?' -Default No) { Start-RiDVM -Name $vm.Name -Confirm:$true } else { Start-RiDVM -Name $vm.Name -WhatIf }
                                         }
                                         'b' {
-                                            $hard = Read-Host 'Hard stop? [y/N]'
-                                            $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                                            if ($preview -match '^[Nn]') { Stop-RiDVM -Name $vm.Name -Hard:($hard -match '^[Yy]') -Confirm:$true } else { Stop-RiDVM -Name $vm.Name -Hard:($hard -match '^[Yy]') -WhatIf }
+                                            $hard = Read-RiDYesNo -Prompt 'Hard stop?' -Default No
+                                            if (Read-RiDYesNo -Prompt 'Apply changes?' -Default No) { Stop-RiDVM -Name $vm.Name -Hard:$hard -Confirm:$true } else { Stop-RiDVM -Name $vm.Name -Hard:$hard -WhatIf }
                                         }
                                         'c' {
                                             $snap = Read-Host 'Snapshot name'
-                                            $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
-                                            if ($preview -match '^[Nn]') { Checkpoint-RiDVM -Name $vm.Name -SnapshotName $snap -Confirm:$true } else { Checkpoint-RiDVM -Name $vm.Name -SnapshotName $snap -WhatIf }
+                                            if (Read-RiDYesNo -Prompt 'Apply changes?' -Default No) { Checkpoint-RiDVM -Name $vm.Name -SnapshotName $snap -Confirm:$true } else { Checkpoint-RiDVM -Name $vm.Name -SnapshotName $snap -WhatIf }
                                         }
                                         default { }
                                     }
@@ -578,8 +455,8 @@ function Show-RiDMenu {
                     } catch { Write-Error $_ }
                     _Pause
                 }
-                '8' { _ShowOptionsMenu }
-                '9' { try { Show-RiDChecklist } catch { Write-Error $_ } }
+                '7' { _ShowOptionsMenu }
+                '6' { try { Show-RiDChecklist } catch { Write-Error $_ } }
                 'X' { return }
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }
@@ -589,7 +466,7 @@ function Show-RiDMenu {
             Write-Host '  2) Sync scripts'
             Write-Host '  3) Status & Checklist'
             Write-Host '  X) Exit'
-            $choice = Read-Host 'Enter choice'
+            $choice = Read-Host 'Select an option'
             switch ($choice.ToUpper()) {
                 '1' {
                     try { Open-RiDGuestHelper } catch { Write-Error $_ }
@@ -598,8 +475,7 @@ function Show-RiDMenu {
                 '2' {
                     try {
                         $dir = Read-Host 'Direction: FromShare (F), ToShare (T) or Bidirectional (B) [B]'
-                        $dry = Read-Host 'Dry-run? [Y/n]'
-                        $isDry = -not ($dry -match '^[Nn]')
+                        $isDry = -not (Read-RiDYesNo -Prompt 'Apply changes?' -Default No)
                         switch ($dir.ToUpper()) {
                             'F' { Sync-RiDScripts -FromShare -DryRun:$isDry }
                             'T' { Sync-RiDScripts -ToShare -DryRun:$isDry }

@@ -24,7 +24,7 @@ function Open-RiDGuestHelper {
         if (-not $prep.Admin) { Write-Host 'Note: Some installers may require elevation. Run PowerShell as Administrator for best results.' -ForegroundColor Yellow }
         while ($true) {
             Clear-Host
-            Write-RiDHeader -Title 'Guest Software Helper'
+            Write-RiDHeader -Title 'RiD Control > Guest Software Helper'
             Write-Host 'Choose an action:' -ForegroundColor Green
             Write-Host '  1) Install 7-Zip'
             Write-Host '  2) Install Java JRE (Temurin 17)'
@@ -34,7 +34,7 @@ function Open-RiDGuestHelper {
             Write-Host '  6) Install Chocolatey (package manager)'
             Write-Host '  7) Install/Update winget (App Installer)'
             Write-Host '  X) Back'
-            $sel = Read-Host 'Select [1]'
+            $sel = Read-Host 'Select an option [1]'
             if (-not $sel) { $sel = '1' }
 
             switch ($sel.ToUpper()) {
@@ -43,14 +43,14 @@ function Open-RiDGuestHelper {
                         $ok = Install-RiD7Zip
                         if ($ok) { Write-Host '7-Zip installation requested.' -ForegroundColor Green } else { Write-Host '7-Zip installation could not be completed automatically.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '2' {
                     try {
                         $ok = Install-RiDJavaJre
                         if ($ok) { Write-Host 'Java JRE installation requested.' -ForegroundColor Green } else { Write-Host 'Java installation could not be completed automatically.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '3' {
                     try {
@@ -59,7 +59,7 @@ function Open-RiDGuestHelper {
                         $j = Read-Host 'Install Java as well? [y/N]'
                         Initialize-RiDGuest -InstallJava:($j -match '^[Yy]') -Destination $dest -Confirm:$true | Out-Null
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '4' {
                     try {
@@ -71,7 +71,7 @@ function Open-RiDGuestHelper {
                         if ($arc) { Initialize-RiDGuest -NoDownload -ArchivePath $arc -Destination $dest -Confirm:$true | Out-Null }
                         else { Write-Host 'No archive selected.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '5' {
                     try {
@@ -93,7 +93,7 @@ function Open-RiDGuestHelper {
                         if ($url) { Install-RiDRunescape -Url $url }
                         else { Write-Host 'No URL provided.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '6' {
                     try {
@@ -101,7 +101,7 @@ function Open-RiDGuestHelper {
                         if ($ok) { Write-Host 'Chocolatey installed or already present.' -ForegroundColor Green }
                         else { Write-Host 'Chocolatey installation not completed. Ensure you are running as Administrator.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '7' {
                     try {
@@ -109,10 +109,10 @@ function Open-RiDGuestHelper {
                         if ($ok) { Write-Host 'winget detected.' -ForegroundColor Green }
                         else { Write-Host 'Opened Microsoft Store/App Installer page. Complete install then re-run.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 'X' { return }
-                default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; Pause-RiD }
             }
         }
     } catch { Write-Error $_ }

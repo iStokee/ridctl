@@ -22,6 +22,17 @@ documentation, unit tests and build scripts. The module includes:
 - Status & Checklist view for host and guest with safe, re‑runnable actions.
 
 Refer to `USAGE.md` for a quick start and examples. The host menu includes an Options pane to configure defaults (download folder, ISO options, templates, shared folder, vmrun path, and VM defaults such as destination base, CPU, memory, disk, and method). First‑run prompts for key values and uses sensible defaults.
+
+Host menu layout:
+
+1) Create new VM
+2) ISO Helper
+3) Registered VMs
+4) Shared Folder: Provision/Repair
+5) Sync Scripts
+6) Status & Checklist
+7) Options
+X) Exit
 ISO defaults (`Iso.Release`, `Iso.Edition`, `Iso.Arch`) are used by the automated helper and can be set via Options or at runtime.
 
 Defaults: the shared folder host path is `C:\RiDShare` (created on first run if missing) and the shared folder name is `rid`. The default ISO download directory is `C:\ISO`.
@@ -48,7 +59,7 @@ For a smoother experience, you can register existing VMs with friendly names and
 - List: `Get-RiDVM` (or filter with `-Name`)
 - Remove: `Unregister-RiDVM -Name <friendly>`
 
-In `Show-RiDMenu` (host), choose `7) Registered VMs` to:
+In `Show-RiDMenu` (host), choose `3) Registered VMs` to:
 - See your registered list (or be prompted to register one if empty)
 - Select an index to Start, Stop, or Snapshot
 - Use `r` to register another or `u` to unregister

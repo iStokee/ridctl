@@ -36,7 +36,7 @@ function Open-RiDIsoHelper {
 
         while ($true) {
             Clear-Host
-            Write-RiDHeader -Title 'ISO Helper'
+            Write-RiDHeader -Title 'RiD Control > ISO Helper'
             Write-Host 'Choose an action:' -ForegroundColor Green
             Write-Host ('Default download dir: ' + $defaultDir) -ForegroundColor DarkGray
             Write-Host ''
@@ -48,7 +48,7 @@ function Open-RiDIsoHelper {
             Write-Host '  6) List available options (Fido)'
             Write-Host '  7) Pick existing ISO file'
             Write-Host '  X) Back'
-            $sel = Read-Host 'Select [1]'
+            $sel = Read-Host 'Select an option [1]'
             if (-not $sel) { $sel = '1' }
 
             switch ($sel.ToUpper()) {
@@ -58,8 +58,8 @@ function Open-RiDIsoHelper {
                         $langPref = 'en-US'
                         $iso = Invoke-RiDFidoDownload -Version 'win11' -Language $langPref -Destination $defaultDir -TryNonInteractive
                         if ($iso) { return $iso }
-                        else { Write-Host 'No ISO selected or download failed.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
-                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                        else { Write-Host 'No ISO selected or download failed.' -ForegroundColor Yellow; Pause-RiD }
+                    } catch { Write-Error $_; Pause-RiD }
                 }
 
                 '2' {
@@ -92,18 +92,17 @@ function Open-RiDIsoHelper {
                             $url = Get-RiDWindowsIso -Version $curVer -Release $rel -Edition $ed -Language $ln -Arch $ar -GetUrl
                             if ($url) {
                                 Write-Host ("URL: {0}" -f $url) -ForegroundColor Cyan
-                                $copy = Read-Host 'Copy URL to clipboard? [y/N]'
-                                if ($copy -match '^[Yy]') { try { Set-Clipboard -Value $url } catch { Write-Warning 'Clipboard unavailable.' } }
-                                [void](Read-Host 'Enter to continue')
+                                if (Read-RiDYesNo -Prompt 'Copy URL to clipboard?' -Default No) { try { Set-Clipboard -Value $url } catch { Write-Warning 'Clipboard unavailable.' } }
+                                Pause-RiD
                             } else {
-                                Write-Host 'Failed to obtain URL.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue')
+                                Write-Host 'Failed to obtain URL.' -ForegroundColor Yellow; Pause-RiD
                             }
                         } else {
                             $file = Get-RiDWindowsIso -Version $curVer -Release $rel -Edition $ed -Language $ln -Arch $ar -OutFile $outPath
                             if ($file -and (Test-Path -LiteralPath $file)) { return $file }
-                            else { Write-Host 'Download failed.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                            else { Write-Host 'Download failed.' -ForegroundColor Yellow; Pause-RiD }
                         }
-                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                    } catch { Write-Error $_; Pause-RiD }
                 }
 
                 '3' {
@@ -117,7 +116,7 @@ function Open-RiDIsoHelper {
                         if ($url) { Write-Host ("URL: {0}" -f $url) -ForegroundColor Cyan }
                         else { Write-Host 'Failed to obtain URL.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
 
                 '4' {
@@ -126,8 +125,8 @@ function Open-RiDIsoHelper {
                         $lang    = Read-Host 'Language (locale or name) [en-US]'; if (-not $lang) { $lang = 'en-US' }
                         $iso = Invoke-RiDFidoDownload -Version $verPick -Language $lang -Destination $defaultDir
                         if ($iso) { return $iso }
-                        else { Write-Host 'No ISO selected.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
-                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                        else { Write-Host 'No ISO selected.' -ForegroundColor Yellow; Pause-RiD }
+                    } catch { Write-Error $_; Pause-RiD }
                 }
 
                 '5' {
@@ -137,7 +136,7 @@ function Open-RiDIsoHelper {
                         else { $null = Install-RiDFido -PersistConfig -Apply }
                         Write-Host 'Fido installation attempted. Configure path under Options if needed.' -ForegroundColor Cyan
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
 
                 '6' {
@@ -150,7 +149,7 @@ function Open-RiDIsoHelper {
                         if ($list -and $list.Count -gt 0) { $list | ForEach-Object { Write-Host ('  ' + $_) } }
                         else { Write-Host 'No data.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
 
                 '7' {
@@ -158,12 +157,12 @@ function Open-RiDIsoHelper {
                         $init = if (Test-Path -LiteralPath $defaultDir) { $defaultDir } else { $env:USERPROFILE }
                         $iso = Show-RiDOpenFileDialog -InitialDirectory $init -Filter 'ISO files (*.iso)|*.iso|All files (*.*)|*.*' -Title 'Select Windows ISO'
                         if ($iso) { return $iso }
-                        else { Write-Host 'No file selected.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
-                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                        else { Write-Host 'No file selected.' -ForegroundColor Yellow; Pause-RiD }
+                    } catch { Write-Error $_; Pause-RiD }
                 }
 
                 'X' { return $null }
-                default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; Pause-RiD }
             }
         }
     } catch { Write-Error $_ }

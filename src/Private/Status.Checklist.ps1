@@ -27,8 +27,12 @@ function Get-RiDChecklistStatus {
         $res['VMware Version']       = $agg.VmwareVersion
         try { $wk = Get-RiDWorkstationInfo } catch {}
         $tools = Get-RiDVmTools
-        $res['vmrun path']          = if ($tools.VmrunPath) { $tools.VmrunPath } else { '' }
-        $res['vmcli path']          = if ($tools.VmCliPath) { $tools.VmCliPath } else { '' }
+        $vmrunPath = ''
+        $vmcliPath = ''
+        try { if ($tools -and $tools.VmrunPath) { $vmrunPath = [string]$tools.VmrunPath } } catch { }
+        try { if ($tools -and $tools.VmCliPath)  { $vmcliPath = [string]$tools.VmCliPath } } catch { }
+        $res['vmrun path'] = $vmrunPath
+        $res['vmcli path'] = $vmcliPath
 
         $shareHost = if ($cfg['Share'] -and $cfg['Share']['HostPath']) { [string]$cfg['Share']['HostPath'] } else { '' }
         $res['Share host path exists'] = if ($shareHost) { Test-Path -LiteralPath $shareHost } else { $false }
@@ -39,11 +43,10 @@ function Get-RiDChecklistStatus {
         $res['Template VMX exists']  = if ($tplVmx) { Test-Path -LiteralPath $tplVmx } else { $false }
         $res['Download dir exists']  = if ($cfg['Iso'] -and $cfg['Iso']['DefaultDownloadDir']) { Test-Path -LiteralPath ([string]$cfg['Iso']['DefaultDownloadDir']) } else { $false }
         $cfgPath = ''
-        try {
-            $cfgPath = [string]$cfg['Iso']['FidoScriptPath']
-        } catch { $cfgPath = '' }
-        $detected = Get-RiDFidoScriptPath
-        $pathToShow = if ($cfgPath) { $cfgPath } elseif ($detected) { [string]$detected } else { '' }
+        try { $cfgPath = [string]$cfg['Iso']['FidoScriptPath'] } catch { $cfgPath = '' }
+        $detected = ''
+        try { $detected = [string](Get-RiDFidoScriptPath) } catch { $detected = '' }
+        $pathToShow = if ($cfgPath) { $cfgPath } elseif ($detected) { $detected } else { '' }
         $available = $false
         try {
             if ($pathToShow -and (Test-Path -LiteralPath $pathToShow)) { $available = $true }
@@ -62,13 +65,25 @@ function Get-RiDChecklistStatus {
 
 function Write-RiDChecklist {
     [CmdletBinding()] param([Parameter(Mandatory=$true)][psobject]$Checklist)
+    function _S([object]$v) {
+        if ($null -eq $v) { return '' }
+        if ($v -is [System.Collections.IDictionary] -or ($v -is [System.Collections.IEnumerable] -and -not ($v -is [string]))) {
+            return (ConvertTo-Json -InputObject $v -Depth 5 -Compress)
+        }
+        return [string]$v
+    }
     foreach ($p in $Checklist.PSObject.Properties) {
         $name = $p.Name
         $val  = $p.Value
-        $txt  = [string]$val
+        $txt  = _S $val
         $color = 'White'
         if ($val -is [bool]) { $color = if ($val) { 'Green' } else { 'Yellow' }; $txt = if ($val) { 'OK' } else { 'Not set' } }
         elseif ([string]::IsNullOrWhiteSpace($txt)) { $txt = 'Not set'; $color = 'Yellow' }
+        # Avoid type-name leakage if something upstream passed a non-scalar
+        if ($txt -match '^System\.Collections\.(Hashtable|Generic\.)' -or $txt -match '^System\.Management\.Automation\.PSCustomObject') {
+            $txt = 'Not set'
+            if ($color -eq 'White') { $color = 'Yellow' }
+        }
         Write-Host ("- {0}: {1}" -f $name, $txt) -ForegroundColor $color
     }
 }

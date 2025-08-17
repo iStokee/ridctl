@@ -13,7 +13,7 @@ function Show-RiDChecklist {
     $status = Get-RiDAggregateStatus
     while ($true) {
         Clear-Host
-        Write-RiDHeader -Title 'RiD Checklist'
+        Write-RiDHeader -Title 'RiD Control > Checklist'
         $ck = Get-RiDChecklistStatus
         Write-RiDChecklist -Checklist $ck
         Write-Host ''
@@ -21,14 +21,14 @@ function Show-RiDChecklist {
             Write-Host 'Actions (Host):' -ForegroundColor Green
             Write-Host '  1) Test virtualization (detailed)'
             Write-Host '  2) ISO helper'
-            Write-Host '  3) Repair shared folder (vmrun)'
+            Write-Host '  3) Repair shared folder'
             Write-Host '  4) Sync scripts'
             Write-Host '  5) Install/Update Fido script'
             Write-Host '  X) Back'
-            $sel = Read-Host 'Choose'
+            $sel = Read-Host 'Select an option'
             switch ($sel.ToUpper()) {
-                '1' { try { Test-RiDVirtualization -Detailed | Out-Null } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
-                '2' { try { $null = Open-RiDIsoHelper } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
+                '1' { try { Test-RiDVirtualization -Detailed | Out-Null } catch { Write-Error $_ }; Pause-RiD }
+                '2' { try { $null = Open-RiDIsoHelper } catch { Write-Error $_ }; Pause-RiD }
                 '3' {
                     try {
                         $vmx = Read-Host 'Path to VMX (or leave blank to cancel)'
@@ -39,20 +39,19 @@ function Show-RiDChecklist {
                             Repair-RiDSharedFolder -VmxPath $vmx -ShareName $name -HostPath $host -Confirm:$true
                         }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '4' {
                     try {
                         $dir = Read-Host 'Direction: FromShare (F), ToShare (T) or Bidirectional (B) [B]'
-                        $dry = Read-Host 'Dry-run? [Y/n]'
-                        $isDry = -not ($dry -match '^[Nn]')
+                        $isDry = -not (Read-RiDYesNo -Prompt 'Apply changes?' -Default No)
                         switch ($dir.ToUpper()) {
                             'F' { Sync-RiDScripts -FromShare -DryRun:$isDry }
                             'T' { Sync-RiDScripts -ToShare -DryRun:$isDry }
                             default { Sync-RiDScripts -Bidirectional -DryRun:$isDry }
                         }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 '5' {
                     try {
@@ -60,7 +59,7 @@ function Show-RiDChecklist {
                         if ($path) { Write-Host ("Fido installed/updated at: {0}" -f $path) -ForegroundColor Green }
                         else { Write-Host 'Fido installation not completed.' -ForegroundColor Yellow }
                     } catch { Write-Error $_ }
-                    [void](Read-Host 'Enter to continue')
+                    Pause-RiD
                 }
                 'X' { return }
                 default { }
@@ -73,13 +72,13 @@ function Show-RiDChecklist {
             Write-Host '  4) Install Java JRE (Temurin 17)'
             Write-Host '  5) Open Guest Software Helper'
             Write-Host '  X) Back'
-            $sel = Read-Host 'Choose'
+            $sel = Read-Host 'Select an option'
             switch ($sel.ToUpper()) {
-                '1' { try { $null = Install-RiDChocolatey } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
-                '2' { try { $null = Install-RiDWinget } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
-                '3' { try { $null = Install-RiD7Zip } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
-                '4' { try { $null = Install-RiDJavaJre } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
-                '5' { try { Open-RiDGuestHelper } catch { Write-Error $_ }; [void](Read-Host 'Enter to continue') }
+                '1' { try { $null = Install-RiDChocolatey } catch { Write-Error $_ }; Pause-RiD }
+                '2' { try { $null = Install-RiDWinget } catch { Write-Error $_ }; Pause-RiD }
+                '3' { try { $null = Install-RiD7Zip } catch { Write-Error $_ }; Pause-RiD }
+                '4' { try { $null = Install-RiDJavaJre } catch { Write-Error $_ }; Pause-RiD }
+                '5' { try { Open-RiDGuestHelper } catch { Write-Error $_ }; Pause-RiD }
                 'X' { return }
                 default { }
             }

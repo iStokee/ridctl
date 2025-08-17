@@ -125,3 +125,21 @@ function Write-RiDReadinessBanner {
     Write-Host ($parts -join ' ') -ForegroundColor $color
     Write-Host ''
 }
+
+# Standard pause prompt for consistency across menus
+function Pause-RiD {
+    [CmdletBinding()] param()
+    [void](Read-Host 'Press Enter to continue...')
+}
+
+# Consistent Yes/No reader with default handling and normalized parsing
+function Read-RiDYesNo {
+    [CmdletBinding()] param(
+        [Parameter(Mandatory=$true)] [string]$Prompt,
+        [Parameter()] [ValidateSet('Yes','No')] [string]$Default = 'No'
+    )
+    $suffix = if ($Default -eq 'Yes') { ' [Y/n]' } else { ' [y/N]' }
+    $ans = Read-Host ($Prompt + $suffix)
+    if ([string]::IsNullOrWhiteSpace($ans)) { return ($Default -eq 'Yes') }
+    return ($ans -match '^[Yy]')
+}

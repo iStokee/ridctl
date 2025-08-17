@@ -89,7 +89,7 @@ See repository layout under `src/Public` and `src/Private` with helpers for vmru
 
 ### TUI behavior
 
-- Host: New VM, Virtualization readiness, Shared folder, Sync, Utilities, Exit
+- Host: Create new VM, ISO Helper, Registered VMs, Shared Folder, Sync Scripts, Status & Checklist, Options, Exit
 - Guest: Sync, VM info, Exit
 - Status cards: Virtualization | ISO | Shared Folder | Sync (green/yellow/red)
 
@@ -136,6 +136,6 @@ Next focus:
    - Guest Software Helper added with installers for 7‑Zip, Java JRE, RuneScape; package manager bootstraps for Chocolatey and winget
    - Preflight checks (Admin, winget/choco/BITS/TLS, download dir)
  - Status & Checklist:
-   - Added `Show-RiDChecklist` with host/guest adaptive view and safe re‑run actions; wired into menus (Host 9, Guest 3)
+   - Added `Show-RiDChecklist` with host/guest adaptive view and safe re‑run actions; wired into menus (Host 6, Guest 3)
  - Guest init:
    - `Initialize-RiDGuest` now supports `-NoDownload` and `-ArchivePath` for pre‑seeded archives

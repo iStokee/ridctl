@@ -13,9 +13,20 @@
 function Get-RiDFidoScriptPath {
     [CmdletBinding()] param()
     $cfg = Get-RiDConfig
-    if ($cfg['Iso'] -and $cfg['Iso']['FidoScriptPath'] -and (Test-Path -Path $cfg['Iso']['FidoScriptPath'])) {
-        return $cfg['Iso']['FidoScriptPath']
-    }
+    try {
+        $val = $null
+        if ($cfg['Iso']) { $val = $cfg['Iso']['FidoScriptPath'] }
+        # Coerce odd shapes to a usable string
+        if ($val -is [System.Collections.IDictionary]) {
+            if ($val.ContainsKey('FidoScriptPath')) { $val = [string]$val['FidoScriptPath'] }
+            else { $val = '' }
+        } elseif ($val -is [psobject]) {
+            try { $val = [string]$val.FidoScriptPath } catch { $val = [string]$val }
+        } else {
+            $val = [string]$val
+        }
+        if ($val -and (Test-Path -Path $val)) { return $val }
+    } catch { }
     # Check well-known location first: C:\\ISO\\fido\\Fido.ps1
     $isoFido = 'C:\\ISO\\fido\\Fido.ps1'
     try { if (Test-Path -Path $isoFido) { return $isoFido } } catch { }

@@ -39,7 +39,7 @@ Note: The default ISO download directory across ridctl is `C:\\ISO`. You can cha
 - `Show-RiDChecklist` opens a consolidated status view with colorized items and safe re‑run actions. It adapts to Host vs Guest:
   - Host: Virtualization readiness, VMware presence/version, vmrun/vmcli paths, shared folder host path, template VMX/snapshot configured and exists, ISO download directory, Fido script path/availability, registered VM count. Actions to re‑run virtualization test, open ISO helper, repair shared folder, sync, or install/update Fido.
   - Guest: Admin state, winget/choco/BITS availability, TLS enabled, 7‑Zip/Java presence, RiD folder exists, shared folder UNC. Actions to install Chocolatey, install/update winget (App Installer), install 7‑Zip/Java, or open the Guest Software Helper.
-  - Accessible via `Show-RiDMenu` on both Host (option 9) and Guest (option 3).
+  - Accessible via `Show-RiDMenu` on both Host (option 6) and Guest (option 3).
 
 Registered VMs (friendlier than typing .vmx paths):
 
@@ -53,7 +53,7 @@ Registered VMs (friendlier than typing .vmx paths):
   - `Repair-RiDSharedFolder -Name <friendly> -ShareName <name> -HostPath <path> -WhatIf` or `-Confirm:$true`
 
 Managing registered VMs in the menu:
-- From `Show-RiDMenu` on host, choose `7) Registered VMs`.
+- From `Show-RiDMenu` on host, choose `3) Registered VMs`.
 - If none exist, you’ll be prompted to register one (name + `.vmx` path).
 - When VMs are listed, select an index to perform actions: Start, Stop, Snapshot; or choose `r` to register another or `u` to unregister.
 
@@ -70,7 +70,7 @@ New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 
 - If `-IsoPath` is omitted, the command can launch the ISO helper.
 - With `-WhatIf`, clone and VMX edits are printed (dry‑run). With `-Confirm`, you are prompted before applying.
 
-From the host menu, choose `2) Create new VM`. The flow pre-fills values from your saved defaults and you can press Enter for all prompts to get a working example:
+From the host menu, choose `1) Create new VM`. The flow pre-fills values from your saved defaults and you can press Enter for all prompts to get a working example:
 - Name: defaults to `rid-YYYYMMDD_HHMM`
 - Destination: suggests `Join-Path VmDefaults.DestinationBase <Name>` (e.g., `C:\VMs\<Name>`)
 - CPU/Memory/Disk: prompts show `[default]` values from `VmDefaults`
