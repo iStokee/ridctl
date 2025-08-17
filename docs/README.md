@@ -1,6 +1,6 @@
 # RiD Control
 
-RiD is a PowerShell module and command‑line interface for managing
+ridctl is a PowerShell module and command‑line interface for managing
 virtual machines used for development workflows. It consolidates
 existing guides for provisioning a VMware Workstation guest and
 synchronising scripts between host and guest into a single tool with a
