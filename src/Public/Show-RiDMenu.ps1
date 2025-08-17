@@ -17,7 +17,7 @@ function Show-RiDMenu {
     function _WriteBanner { Write-RiDHeader }
     function _ShowStatus {
         $s = Get-RiDStatus
-        Write-RiDReadinessBanner -Status $s
+        # Simplify header: only show status cards (omit top readiness banner)
         Write-RiDStatusCards -Status $s
     }
 

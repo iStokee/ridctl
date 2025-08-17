@@ -30,9 +30,9 @@ Public cmdlets support native `-WhatIf/-Confirm` (safe by default); private help
 
 Default-first UX: on first run, ridctl offers to either accept sensible defaults immediately or walk through a setup wizard. You can adjust anything later in Options.
 
-## Readiness Banner
+## Readiness
 
-When you run `Show-RiDMenu` on the host, a readiness banner appears above the status cards to quickly indicate if you can proceed:
+When you run `Show-RiDMenu` on the host, the status cards summarize whether VMware Workstation is installed and if virtualization is ready or conflicted.
 
 - VMware Workstation: Installed/Missing (and version when detected). Missing is fatal for VMware flows.
 - Virtualization: Ready/Conflicted/Not Ready.
@@ -40,11 +40,6 @@ When you run `Show-RiDMenu` on the host, a readiness banner appears above the st
   - Conflicted: VT is enabled, but Windows features like Hyper-V, Virtual Machine Platform, Windows Hypervisor Platform, Device Guard/VBS, or Memory Integrity (HVCI) are enabled.
   - Not Ready: CPU/BIOS virtualization is disabled or not supported.
 - Next steps: Use `Test-RiDVirtualization -Detailed` for actionable guidance (disable conflicting features, `bcdedit /set hypervisorlaunchtype off`, turn off Memory Integrity, reboot).
-
-Example messages:
-- Ready: VMware installed; virtualization OK. (v17.x)
-- VMware Workstation missing — install to continue.
-- Conflicted: Hyper-V, Virtual Machine Platform, Windows Hypervisor Platform. See Test-RiDVirtualization for details.
 
 ## Registered VMs
 
