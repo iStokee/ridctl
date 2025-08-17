@@ -95,7 +95,11 @@ function Clone-RiDVmrunTemplate {
     if (-not (Test-Path -Path $TemplateVmx)) { Write-Error ("Template VMX not found: {0}" -f $TemplateVmx); return $null }
     $destDir = Split-Path -Path $DestinationVmx -Parent
     if (-not (Test-Path -Path $destDir)) {
-        try { New-Item -Path $destDir -ItemType Directory -Force | Out-Null } catch { Write-Error "Failed to create destination directory: $_"; return $null }
+        if ($Apply) {
+            try { New-Item -Path $destDir -ItemType Directory -Force | Out-Null } catch { Write-Error "Failed to create destination directory: $_"; return $null }
+        } else {
+            Write-Host ('[fs] New-Item -ItemType Directory -Path "{0}" -Force' -f $destDir) -ForegroundColor DarkCyan
+        }
     }
     if (Test-Path -Path $DestinationVmx) {
         Write-Error ("Destination VMX already exists: {0}" -f $DestinationVmx)

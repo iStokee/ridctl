@@ -5,12 +5,10 @@ function New-RiDVM {
         user‑specified parameters.
 
     .DESCRIPTION
-        Will eventually detect available management tooling (vmcli,
-        vmrest or vmrun) and either clone from a template or perform
-        a fresh VM creation, attaching a Windows ISO and provisioning
-        shared folders.  Until these capabilities are implemented this
-        function logs that it is a placeholder and returns without
-        performing any actions.
+        Detects available VMware tooling (vmcli preferred, then vmrun) and
+        either performs a fresh VM creation (vmcli) or clones from a template
+        snapshot (vmrun). Supports dry-run via -WhatIf and prompt/confirm via
+        -Confirm. Optionally attaches an ISO and edits CPU/Memory in the VMX.
 
     .PARAMETER Name
         The name of the new virtual machine.
@@ -32,8 +30,8 @@ function New-RiDVM {
         helper will be invoked (in a future release).
 
     .EXAMPLE
-        PS> New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs' -CpuCount 2 -MemoryMB 4096 -DiskGB 60
-        WARNING: New-RiDVM is not yet implemented.
+        PS> New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs' -CpuCount 2 -MemoryMB 4096 -DiskGB 60 -WhatIf
+        Prints planned vmcli/vmrun actions and VMX edits without applying.
     #>
     [CmdletBinding(SupportsShouldProcess=$true)] param(
         [Parameter(Mandatory=$true)]
@@ -93,12 +91,11 @@ function New-RiDVM {
             if (-not $TemplateSnapshot) { $TemplateSnapshot = Read-Host 'Enter the snapshot name in the template to clone from' }
 
             # Destination
-            if (-not (Test-Path -Path $DestinationPath)) { New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null }
             $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
 
             # Confirm action and clone
             $apply = $PSCmdlet.ShouldProcess($destVmx, "Clone VM from template via vmrun")
-            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $TemplateVmx -SnapshotName $TemplateSnapshot -DestinationVmx $destVmx -Apply:$apply
+            Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $TemplateVmx -SnapshotName $TemplateSnapshot -DestinationVmx $destVmx -Apply:$apply | Out-Null
 
             # VMX edits (CPU/Mem + optional ISO)
             $vmxSettings = @{
@@ -116,7 +113,15 @@ function New-RiDVM {
                 $vmxSettings['ide1:0.startConnected'] = 'TRUE'
                 $vmxSettings['ide1:0.autodetect']     = 'FALSE'
             }
-            Set-RiDVmxSettings -VmxPath $destVmx -Settings $vmxSettings -Apply:$apply | Out-Null
+            # VMX edit: if dry-run and VMX doesn't exist yet, print the intended settings
+            if ($apply -or (Test-Path -Path $destVmx)) {
+                Set-RiDVmxSettings -VmxPath $destVmx -Settings $vmxSettings -Apply:$apply | Out-Null
+            } else {
+                Write-Host '[vmx] Planned settings (dry-run, VMX not yet present):' -ForegroundColor DarkCyan
+                foreach ($k in $vmxSettings.Keys) {
+                    Write-Host ('  + {0} = "{1}"' -f $k, $vmxSettings[$k]) -ForegroundColor DarkCyan
+                }
+            }
 
             $isoText = if ($IsoPath) { ' + ISO' } else { '' }
             if ($apply) {

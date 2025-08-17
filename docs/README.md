@@ -10,13 +10,17 @@ This repository contains the source code for the module as well as
 documentation, unit tests and build scripts. The module includes:
 
 - Virtualization readiness checks (with actionable conflict summary).
-- ISO helper with Fido automation and optional non‑interactive mode.
+- ISO helper with Fido automation:
+  - Advanced selector (Version/Release/Edition/Language/Arch)
+  - Headless URL retrieval and download with progress (HttpClient/BITS)
+  - Interactive fallback with folder watch and auto‑select
 - VM operations via vmrun/vmcli (start/stop/snapshot; new VM via clone or fresh create).
 - Shared folder repair (host) and guest verification integration.
 - Sync v1 (host ↔ share): timestamp+size compare, dry‑run, bidirectional.
 - A first‑run setup that configures defaults and creates the default share path.
 
 Refer to `USAGE.md` for a quick start and examples. The host menu includes an Options pane to configure defaults (download folder, ISO options, templates, shared folder, vmrun path). First‑run prompts for key values and uses sensible defaults.
+ISO defaults (`Iso.Release`, `Iso.Edition`, `Iso.Arch`) are used by the automated helper and can be set via Options or at runtime.
 
 Defaults: the shared folder host path is `C:\RiDShare` (created on first run if missing) and the shared folder name is `rid`.
 

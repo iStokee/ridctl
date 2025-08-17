@@ -62,26 +62,26 @@ Use `Test-RiDVirtualization [-Detailed]` on the host to verify that VMware Works
 
 ## ISO Helper (Automated via Fido)
 
-`Open-RiDIsoHelper` supports a Guided path (opens Microsoft’s download page) and an Automated path that integrates with the Fido script to obtain a direct ISO URL.
+`Open-RiDIsoHelper` supports guided/manual and automated flows. Automated integrates with Fido and offers a fully headless path or an interactive fallback.
 
-- Place the Fido script at `third_party\fido\Get-WindowsIso.ps1` or set `Iso.FidoScriptPath` in your config.
-- Optionally set `Iso.DefaultDownloadDir` to suggest a download directory.
-- The Automated path launches Fido in a new PowerShell window; follow the prompts, download the ISO, then select it in the file picker to return the path to callers.
-  - Optional: choose “Try non-interactive” to attempt passing your version/language/destination to Fido. This depends on the Fido script variant; if unsupported, it falls back to interactive and you’ll be prompted as usual.
-
-Install Fido via ridctl:
+- Install Fido via ridctl:
 
 ```pwsh
 Import-Module ./src -Force
-Install-RiDFido -PersistConfig -Apply
+Install-RiDFido -PersistConfig -Apply   # optional: -PinToCommit <sha>
 ```
+
+Fido script location:
+
+- By default, ridctl installs and looks for `third_party\fido\Fido.ps1`.
+- You can override with `Iso.FidoScriptPath` in your config.
 
 Example config:
 
 ```pwsh
 $cfg = Get-RiDConfig
 $cfg['Iso'] = @{
-  'FidoScriptPath'     = 'D:\\tools\\fido\\Get-WindowsIso.ps1'
+  'FidoScriptPath'     = 'D:\\tools\\fido\\Fido.ps1'
   'DefaultDownloadDir' = 'D:\\ISOs'
 }
 Set-RiDConfig $cfg
@@ -89,10 +89,14 @@ Set-RiDConfig $cfg
 
 Advanced (non-interactive)
 
-ridctl uses Fido's command-line mode and tries to auto-download the ISO when you choose non-interactive:
+When you choose non-interactive, ridctl will:
 
-- Defaults: Win = "Windows 11"/"Windows 10" (from your choice), Rel = 23H2 (Win11) / 22H2 (Win10), Ed = Pro, Arch = x64, Lang = your selection.
-- You can set overrides in config (used for future runs):
+- Offer an advanced selector sub‑menu to choose Version/Release/Edition/Language/Arch (lists come from Fido).
+- Use your choices (and/or saved defaults) to request a direct Microsoft URL.
+- If a direct URL is returned, download with progress (HttpClient or BITS).
+- If not, fall back to the interactive Fido window and optionally watch your download directory to auto‑select the ISO when it appears.
+
+You can set defaults in config (used for future runs):
 
 ```pwsh
 $cfg = Get-RiDConfig
@@ -104,6 +108,11 @@ Set-RiDConfig $cfg
 ```
 
 ridctl captures Fido's `-GetUrl` output, downloads to your destination, and returns the ISO path. If it can't obtain a URL, it falls back to the interactive flow.
+
+Notes:
+- Microsoft download links are time‑limited; start downloads promptly.
+- Some environments may lack HttpClient; BITS fallback is used on Windows PowerShell.
+- Tiny downloads (< 1 GB) are rejected to avoid saving error pages.
  
 ## Options Menu
 

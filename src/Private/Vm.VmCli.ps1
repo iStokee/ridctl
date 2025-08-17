@@ -67,7 +67,13 @@ function New-RiDVmCliVM {
         [Parameter()] [switch]$Apply
     )
     Write-Host "Preparing to create VM '$Name' at '$DestinationPath' using vmcli." -ForegroundColor Cyan
-    if (-not (Test-Path -Path $DestinationPath)) { try { New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null } catch { Write-Error "Failed to create destination: $_"; return $null } }
+    if (-not (Test-Path -Path $DestinationPath)) {
+        if ($Apply) {
+            try { New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null } catch { Write-Error "Failed to create destination: $_"; return $null }
+        } else {
+            Write-Host ('[fs] New-Item -ItemType Directory -Path "{0}" -Force' -f $DestinationPath) -ForegroundColor DarkCyan
+        }
+    }
     $args = ('vm create --name "{0}" --cpus {1} --memory {2} --disk-size {3} --path "{4}"' -f $Name, $CpuCount, $MemoryMB, $DiskGB, $DestinationPath)
     if ($IsoPath) { $args += (' --iso "{0}"' -f $IsoPath) }
     $rc = Invoke-RiDVmCliCommand -VmCliPath $VmCliPath -Arguments $args -Apply:$Apply

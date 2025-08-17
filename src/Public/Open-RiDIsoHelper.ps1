@@ -62,7 +62,7 @@ function Open-RiDIsoHelper {
                 if ($ver -ne '10' -and $ver -ne '11') { $ver = '11' }
                 $lang = Read-Host 'Language (e.g., en-US) [default en-US]'
                 if (-not $lang) { $lang = 'en-US' }
-                $cfg = Get-RiDConfig
+                $cfg = Initialize-RiDConfig
                 $dest = $null
                 if ($cfg['Iso'] -and $cfg['Iso']['DefaultDownloadDir']) { $dest = $cfg['Iso']['DefaultDownloadDir'] }
                 if (-not $dest) { $dest = Read-Host 'Download directory (leave blank for your Downloads folder)' }
@@ -71,18 +71,61 @@ function Open-RiDIsoHelper {
                 $tryNon = Read-Host 'Try non-interactive mode if supported? [y/N]'
                 $trySwitch = ($tryNon -match '^[Yy]')
                 if ($trySwitch) {
-                    $adv = Read-Host 'Advanced options? (Release/Edition/Arch) [Y/n]'
+                    $adv = Read-Host 'Advanced selector? [Y/n]'
                     if ($adv -notmatch '^[Nn]') {
-                        $rel = Read-Host ("Release (default: {0})" -f (if ($vparam -eq 'win10') { '22H2' } else { '23H2' }))
-                        $ed  = Read-Host 'Edition (default: Pro)'
-                        $arch= Read-Host 'Architecture (default: x64)'
-                        $cfg = Get-RiDConfig
-                        if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
-                        if ($rel) { $cfg['Iso']['Release'] = $rel }
-                        if ($ed)  { $cfg['Iso']['Edition'] = $ed }
-                        if ($arch){ $cfg['Iso']['Arch']    = $arch }
-                        if ($rel -or $ed -or $arch) { Set-RiDConfig -Config $cfg }
+                        try {
+                            # Interactive sub-menu powered by headless list APIs
+                            $verList = Get-RiDFidoList -List Win
+                            $verChoices = @('10','11')
+                            if ($verList -and $verList -contains '8.1') { $verChoices = @('10','11') }
+                            Write-Host 'Select Windows version:' -ForegroundColor Cyan
+                            for ($i=0;$i -lt $verChoices.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $verChoices[$i]) }
+                            $sel = Read-Host 'Choice [default 2]'
+                            $verNum = if ($sel -eq '1') { '10' } else { '11' }
+
+                            $relList = Get-RiDFidoList -List Rel -Version $verNum
+                            $relOpts = @('Latest') + $relList
+                            Write-Host 'Select release:' -ForegroundColor Cyan
+                            for ($i=0;$i -lt $relOpts.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $relOpts[$i]) }
+                            $sel = Read-Host 'Choice [default 1]'
+                            $rel = if ($sel -and ($sel -as [int]) -ge 1 -and ($sel -as [int]) -le $relOpts.Count) { $relOpts[([int]$sel-1)] } else { 'Latest' }
+
+                            $edList = Get-RiDFidoList -List Ed -Version $verNum -Release $rel
+                            Write-Host 'Select edition:' -ForegroundColor Cyan
+                            for ($i=0;$i -lt $edList.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $edList[$i]) }
+                            $sel = Read-Host 'Choice [default 1]'
+                            $ed = if ($sel -and ($sel -as [int]) -ge 1 -and ($sel -as [int]) -le $edList.Count) { $edList[([int]$sel-1)] } else { $edList[0] }
+
+                            $langList = Get-RiDFidoList -List Lang -Version $verNum -Release $rel -Edition $ed
+                            Write-Host 'Select language:' -ForegroundColor Cyan
+                            for ($i=0;$i -lt $langList.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $langList[$i]) }
+                            $sel = Read-Host 'Choice [default 1]'
+                            $langSel = if ($sel -and ($sel -as [int]) -ge 1 -and ($sel -as [int]) -le $langList.Count) { $langList[([int]$sel-1)] } else { $langList[0] }
+
+                            $archChoices = @('x64','arm64','x86')
+                            Write-Host 'Select architecture:' -ForegroundColor Cyan
+                            for ($i=0;$i -lt $archChoices.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $archChoices[$i]) }
+                            $sel = Read-Host 'Choice [default 1]'
+                            $archSel = if ($sel -eq '2') { 'arm64' } elseif ($sel -eq '3') { 'x86' } else { 'x64' }
+
+                            $cfg = Initialize-RiDConfig
+                            if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
+                            $cfg['Iso']['Release'] = $rel
+                            $cfg['Iso']['Edition'] = $ed
+                            $cfg['Iso']['Arch']    = $archSel
+                            Set-RiDConfig -Config $cfg
+
+                            # Override local variables for this run
+                            $lang = $langSel
+                            $ver = $verNum
+                            $vparam = if ($ver -eq '10') { 'win10' } else { 'win11' }
+                        } catch { Write-Error $_ }
                     }
+                }
+                if ($trySwitch) {
+                    $cur = Initialize-RiDConfig
+                    $rel = $cur['Iso']['Release']; $ed = $cur['Iso']['Edition']; $ar = $cur['Iso']['Arch']
+                    Write-Host ("Using defaults: Release={0}, Edition={1}, Arch={2}" -f $rel,$ed,$ar) -ForegroundColor DarkCyan
                 }
                 $iso = Invoke-RiDFidoDownload -Version $vparam -Language $lang -Destination $dest -TryNonInteractive:$trySwitch
                 if ($iso) { return $iso } else { return $null }
