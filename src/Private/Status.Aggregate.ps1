@@ -8,6 +8,8 @@ function Get-RiDAggregateStatus {
     $isVm     = Get-RiDHostGuestInfo
     $virtInfo = Get-RiDVirtSupport
     $toolsOk  = Get-RiDVmwareToolsStatus
+    $workInfo = $null
+    if (-not $isVm) { try { $workInfo = Get-RiDWorkstationInfo } catch { } }
 
     # Determine virtualization readiness (host only)
     $vtReady = $null
@@ -78,5 +80,7 @@ function Get-RiDAggregateStatus {
         VirtualizationConflicted = ($vtReady -eq $true -and $conflictNames.Count -gt 0)
         VirtualizationConflicts  = $conflictNames
         SyncStatus        = $syncStatus
+        VmwareInstalled   = if ($workInfo) { [bool]$workInfo.Installed } else { $null }
+        VmwareVersion     = if ($workInfo) { [string]$workInfo.Version } else { $null }
     }
 }

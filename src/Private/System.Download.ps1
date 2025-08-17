@@ -32,7 +32,12 @@ function Invoke-RiDDownload {
         $total = if ($resp.Content.Headers.ContentLength) { [int64]$resp.Content.Headers.ContentLength } else { -1 }
 
         $dir = Split-Path -Path $OutFile -Parent
-        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        # Guard against empty path (e.g., OutFile is just a filename)
+        if ($dir -and -not [string]::IsNullOrWhiteSpace($dir)) {
+            if (-not (Test-Path -LiteralPath $dir)) {
+                New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            }
+        }
         $fs = [System.IO.File]::Open($OutFile, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
         try {
             $stream = $resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult()

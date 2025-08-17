@@ -20,12 +20,12 @@ function Start-RiDVM {
         if (-not $resolved) { return }
         $VmxPath = $resolved
     }
-    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, 'Start VM')
+    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists:$apply)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to start VM.'
         return
     }
-    $apply = $PSCmdlet.ShouldProcess($VmxPath, 'Start VM')
     Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'start' -Arguments @('"{0}"' -f $VmxPath, 'nogui') -Apply:$apply
 }

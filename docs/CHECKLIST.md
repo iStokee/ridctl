@@ -108,11 +108,11 @@ Show-RiDMenu
 # Virtualization check
 Test-RiDVirtualization
 
-# ISO helper (automated)
-Open-RiDIsoHelper -Automated
+# ISO helper
+Open-RiDIsoHelper
 
-# Create VM (auto method)
-New-RiDVM -Name 'rid-win10' -CpuCount 4 -MemoryMB 8192 -Confirm:$true
+# Create VM (auto method; menu uses VmDefaults)
+New-RiDVM -Name 'rid-win10' -DestinationPath 'C:\\VMs\\rid-win10' -CpuCount 4 -MemoryMB 8192 -Confirm:$true
 
 # Shared folder repair
 Repair-RiDSharedFolder -VmxPath 'C:\VMs\rid-win10\rid-win10.vmx' -ShareName 'rid' -HostPath 'D:\rid-share' -Confirm:$true

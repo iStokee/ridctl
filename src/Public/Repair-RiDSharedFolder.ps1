@@ -33,13 +33,14 @@ function Repair-RiDSharedFolder {
         if (-not $resolved) { return }
         $VmxPath = $resolved
     }
-    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
+    # Decide whether we're applying (ShouldProcess) before strict validation, so dry-run can still preview
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Configure shared folder '{0}'" -f $ShareName))
+    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists:$apply)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     # Locate vmrun executable
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to configure shared folders.'
         return
     }
-    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Configure shared folder '{0}'" -f $ShareName))
     Enable-RiDSharedFolder -VmxPath $VmxPath -ShareName $ShareName -HostPath $HostPath -VmrunPath $tools.VmrunPath -Apply:$apply
 }

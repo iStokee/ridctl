@@ -37,17 +37,26 @@ function Install-RiDFido {
         if (-not (Test-Path -Path $DestinationDir)) { New-Item -Path $DestinationDir -ItemType Directory -Force | Out-Null }
         Write-Host ("[fido] Downloading script from {0}" -f $SourceUrl) -ForegroundColor Cyan
         $tried = @()
-        $urls = @($SourceUrl,
+        $urls = @(
+            $SourceUrl,
+            # Preferred canonical path in upstream
             'https://raw.githubusercontent.com/pbatard/Fido/master/powershell/fido.ps1',
-            'https://raw.githubusercontent.com/pbatard/Fido/master/Fido.ps1',
             'https://raw.githubusercontent.com/pbatard/Fido/refs/heads/master/powershell/fido.ps1',
-            'https://raw.githubusercontent.com/pbatard/Fido/refs/heads/master/Fido.ps1'
+            # Repo root legacy
+            'https://raw.githubusercontent.com/pbatard/Fido/master/Fido.ps1',
+            'https://raw.githubusercontent.com/pbatard/Fido/refs/heads/master/Fido.ps1',
+            # Be resilient if default branch is 'main'
+            'https://raw.githubusercontent.com/pbatard/Fido/main/powershell/fido.ps1',
+            'https://raw.githubusercontent.com/pbatard/Fido/refs/heads/main/powershell/fido.ps1',
+            'https://raw.githubusercontent.com/pbatard/Fido/main/Fido.ps1',
+            'https://raw.githubusercontent.com/pbatard/Fido/refs/heads/main/Fido.ps1'
         ) | Select-Object -Unique
         $ok = $false
         foreach ($u in $urls) {
             $tried += $u
             try {
                 Invoke-WebRequest -Uri $u -OutFile $targetPath -UseBasicParsing -ErrorAction Stop
+                try { Unblock-File -LiteralPath $targetPath -ErrorAction SilentlyContinue } catch { }
                 $ok = $true
                 break
             } catch { continue }

@@ -12,7 +12,7 @@ Import-Module ridctl
 Show-RiDMenu
 ```
 
-On first run, you’ll be prompted to configure a few defaults (download folder, shared folder name/path, templates, and optional vmrun path). Defaults are pre-filled and formatted clearly. The shared folder host path defaults to `C:\RiDShare` and is created if missing. You can change these anytime under the Options menu. You can also try these implemented
+On first run, ridctl offers to either accept sensible defaults immediately or walk through a simple setup wizard. The shared folder host path defaults to `C:\RiDShare` and is created if missing. You can change anything anytime under the Options menu. You can also try these implemented
 building blocks:
 
 - `Test-RiDVirtualization`: Runs host readiness checks and reports VT status and Windows feature conflicts.
@@ -38,7 +38,7 @@ Managing registered VMs in the menu:
 - If none exist, you’ll be prompted to register one (name + `.vmx` path).
 - When VMs are listed, select an index to perform actions: Start, Stop, Snapshot; or choose `r` to register another or `u` to unregister.
 
-Creating a new VM (vmrun clone):
+Creating a new VM (menu & vmrun clone):
 
 ```powershell
 # Preview (no changes):
@@ -51,14 +51,22 @@ New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 
 - If `-IsoPath` is omitted, the command can launch the ISO helper.
 - With `-WhatIf`, clone and VMX edits are printed (dry‑run). With `-Confirm`, you are prompted before applying.
 
+From the host menu, choose `2) Create new VM`. The flow pre-fills values from your saved defaults and you can press Enter for all prompts to get a working example:
+- Name: defaults to `rid-YYYYMMDD_HHMM`
+- Destination: suggests `Join-Path VmDefaults.DestinationBase <Name>` (e.g., `C:\VMs\<Name>`)
+- CPU/Memory/Disk: prompts show `[default]` values from `VmDefaults`
+- Method: defaults to `VmDefaults.Method` (`auto`, `vmcli`, or `vmrun`)
+
 ## Virtualization Readiness
 
-Use `Test-RiDVirtualization [-Detailed]` on the host to verify that VMware Workstation can run VMs:
+When the host menu opens, a readiness banner summarizes whether VMware Workstation is installed and if virtualization is ready or conflicted. Use `Test-RiDVirtualization -Detailed` for a deeper breakdown.
+
+Use `Test-RiDVirtualization [-Detailed]` on the host to verify readiness:
 
 - Checks: CPU VT support and enabled state; Hyper-V, Virtual Machine Platform, Windows Hypervisor Platform; Hyper-V hypervisor active; hypervisor present now; Windows Sandbox; Core Isolation/Memory Integrity (HVCI); Device Guard/VBS; WSL (informational).
-- Exit codes: 0 = Ready; 1 = Conflicted (features enabled that may block VMware); 2 = Not ready (CPU/BIOS).
+- Exit codes: 0 = Ready; 1 = Conflicted (features enabled that may block VMware); 2 = Not ready (CPU/BIOS) or VMware Workstation missing.
 - Detailed view prints conflicts (or “None”), any reasons for “Not Ready,” and raw values for transparency.
-- Next steps: A single line summarizes actions to disable conflicts (e.g., disable Hyper-V/Platform features, set `bcdedit /set hypervisorlaunchtype off`, turn off Memory Integrity); most changes require a reboot to take effect.
+- Next steps: A single line summarizes actions to disable conflicts (e.g., disable Hyper-V/Platform features, set `bcdedit /set hypervisorlaunchtype off`, turn off Memory Integrity); most changes require a reboot to take effect. If VMware Workstation is not detected, install it first.
 
 ## ISO Helper (Automated via Fido)
 
@@ -116,11 +124,12 @@ Notes:
  
 ## Options Menu
 
-From `Show-RiDMenu` on host, select `8) Options` to view/edit settings grouped by:
+From `Show-RiDMenu` on host, select `8) Options` to view/edit settings. You can always press Enter to keep the current value. Groups:
 - ISO: `Iso.DefaultDownloadDir`, `Iso.FidoScriptPath`, `Iso.Release`, `Iso.Edition`, `Iso.Arch`
 - Templates: `Templates.DefaultVmx`, `Templates.DefaultSnapshot`
 - Shared Folder: `Share.Name`, `Share.HostPath` (default `C:\RiDShare`)
 - VMware: `Vmware.vmrunPath`
+- VM Defaults: `VmDefaults.DestinationBase`, `VmDefaults.CpuCount`, `VmDefaults.MemoryMB`, `VmDefaults.DiskGB`, `VmDefaults.Method`
 
 Changes are saved via `Set-RiDConfig` and used on subsequent runs.
 
@@ -150,6 +159,11 @@ Examples:
 Notes:
 - v1 copies files only; no deletions.
 - Conflict resolution: in bidirectional mode, add `-ResolveConflicts` to prefer the newer side; otherwise conflicts are skipped.
+
+## Tool Detection
+
+- `New-RiDVM -Method auto` prefers `vmcli` if available, otherwise uses `vmrun`.
+- You can set `Vmware.vmrunPath` under Options so `vmrun` is detected even if it’s not on `PATH`.
 ## About VMX Paths
 
 - A `.vmx` file is the VMware Workstation VM configuration file, usually located under your VM folder: `C:\VMs\MyVM\MyVM.vmx`.

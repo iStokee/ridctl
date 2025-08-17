@@ -87,6 +87,18 @@ function Test-RiDVirtualization {
         }
     }
 
+    # VMware Workstation presence (fatal if missing for VMware flows)
+    try {
+        $wk = Get-RiDWorkstationInfo
+        if (-not $wk.Installed) {
+            Write-Host 'VMware Workstation is not installed or not detected.' -ForegroundColor Red
+            Write-Host 'Download: https://www.vmware.com/products/workstation-pro.html' -ForegroundColor Yellow
+            if ($exitCode -lt 2) { $exitCode = 2 }
+        } else {
+            Write-Host ("VMware Workstation detected{0}." -f (if ($wk.Version) { " (v$($wk.Version))" } else { '' })) -ForegroundColor Green
+        }
+    } catch { }
+
     if ($Detailed) {
         Write-Host "`nDetailed results:" -ForegroundColor Cyan
 

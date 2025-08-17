@@ -10,12 +10,21 @@ function Get-RiDVmTools {
     $vmcli = $null
     $vmrun = $null
     try {
+        $cfg = Get-RiDConfig
+        if ($cfg -and $cfg['Vmware'] -and $cfg['Vmware']['vmrunPath']) {
+            $p = [string]$cfg['Vmware']['vmrunPath']
+            if ($p -and (Test-Path -LiteralPath $p)) { $vmrun = $p }
+        }
+    } catch { }
+    try {
         $vmcliCmd = Get-Command -Name vmcli, vmcli.exe -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($vmcliCmd) { $vmcli = $vmcliCmd.Source }
     } catch {}
     try {
-        $vmrunCmd = Get-Command -Name vmrun, vmrun.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($vmrunCmd) { $vmrun = $vmrunCmd.Source }
+        if (-not $vmrun) {
+            $vmrunCmd = Get-Command -Name vmrun, vmrun.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($vmrunCmd) { $vmrun = $vmrunCmd.Source }
+        }
     } catch {}
     # Fallback search for vmrun in default installation directories if not found
     if (-not $vmrun) {
@@ -34,3 +43,51 @@ function Get-RiDVmTools {
     }
 }
 
+function Get-RiDWorkstationInfo {
+    [CmdletBinding()] param()
+    $installPath = $null
+    $version = $null
+    $installed = $false
+    try {
+        $keys = @(
+            'HKLM:\SOFTWARE\VMware, Inc.\VMware Workstation',
+            'HKLM:\SOFTWARE\WOW6432Node\VMware, Inc.\VMware Workstation'
+        )
+        foreach ($k in $keys) {
+            try {
+                $ip = (Get-ItemProperty -Path $k -Name InstallPath -ErrorAction SilentlyContinue | Select-Object -ExpandProperty InstallPath -ErrorAction SilentlyContinue)
+                $ver = (Get-ItemProperty -Path $k -Name Version -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Version -ErrorAction SilentlyContinue)
+                if ($ip) { $installPath = [string]$ip }
+                if ($ver) { $version = [string]$ver }
+            } catch { }
+        }
+    } catch { }
+
+    # Verify presence by checking real executables, not just registry entries
+    $pathsToCheck = @()
+    if ($installPath) {
+        $pathsToCheck += (Join-Path -Path $installPath -ChildPath 'vmware.exe')
+        $pathsToCheck += (Join-Path -Path $installPath -ChildPath 'vmrun.exe')
+        $pathsToCheck += (Join-Path -Path $installPath -ChildPath 'vmcli.exe')
+    }
+    $pathsToCheck += 'C:\\Program Files\\VMware\\VMware Workstation\\vmware.exe'
+    $pathsToCheck += 'C:\\Program Files (x86)\\VMware\\VMware Workstation\\vmware.exe'
+    $pathsToCheck += 'C:\\Program Files\\VMware\\VMware Workstation\\vmrun.exe'
+    $pathsToCheck += 'C:\\Program Files (x86)\\VMware\\VMware Workstation\\vmrun.exe'
+    $pathsToCheck += 'C:\\Program Files\\VMware\\VMware Workstation\\vmcli.exe'
+    $pathsToCheck += 'C:\\Program Files (x86)\\VMware\\VMware Workstation\\vmcli.exe'
+
+    try {
+        $tools = Get-RiDVmTools
+        if ($tools.VmrunPath -and (Test-Path -LiteralPath $tools.VmrunPath)) { $installed = $true }
+        if ($tools.VmCliPath  -and (Test-Path -LiteralPath $tools.VmCliPath))  { $installed = $true }
+    } catch { }
+
+    if (-not $installed) {
+        foreach ($p in $pathsToCheck) {
+            try { if (Test-Path -LiteralPath $p) { $installed = $true; break } } catch { }
+        }
+    }
+
+    return [pscustomobject]@{ Installed = [bool]$installed; InstallPath = $installPath; Version = $version }
+}

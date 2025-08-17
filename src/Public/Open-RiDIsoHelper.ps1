@@ -1,139 +1,171 @@
 function Open-RiDIsoHelper {
     <#
     .SYNOPSIS
-        Guides the user through obtaining or selecting a Windows ISO.
+      Interactive ISO helper submenu for acquiring Windows ISOs.
 
     .DESCRIPTION
-        Interactively prompts the user to specify whether an ISO is
-        already available.  If so, opens a file selection dialog and
-        validates the chosen file.  Otherwise offers to open the
-        official Microsoft download page in the default browser or to
-        invoke an automated download via the embedded Fido script (not
-        yet implemented).  Returns the path to the ISO or `$null` if
-        cancelled.
+      Presents a submenu with guided and automated paths to obtain a
+      Windows ISO using the Fido integration. Options include a quick
+      headless download using configured defaults, an advanced flow to
+      choose Version/Release/Edition/Language/Arch, opening the Fido UI
+      interactively, installing/updating the Fido script, listing
+      available Fido options, and picking an existing ISO file.
+
+      Returns the selected/downloaded ISO file path or $null if the user
+      cancels or backs out.
+
+    .EXAMPLE
+      PS> Open-RiDIsoHelper
     #>
     [CmdletBinding()] param()
 
-    Write-Host 'Windows ISO acquisition' -ForegroundColor Cyan
-    Write-Host '----------------------' -ForegroundColor Cyan
-    
-    # Ask user if they already have an ISO
-    $hasIso = Read-Host 'Do you already have a Windows ISO? [Y/N]'
-    if ($hasIso -match '^[Yy]') {
-        # Let user pick the file via open file dialog
-        $path = Show-RiDOpenFileDialog -Filter 'ISO files (*.iso)|*.iso|All files (*.*)|*.*'
-        if ($null -eq $path) {
-            Write-Warning 'No file selected. Aborting ISO helper.'
-            return $null
+    function _S([object]$v) {
+        if ($null -eq $v) { return '' }
+        if ($v -is [System.Collections.IDictionary] -or ($v -is [System.Collections.IEnumerable] -and -not ($v -is [string]))) {
+            return (ConvertTo-Json -InputObject $v -Depth 5 -Compress)
         }
-        if (-not (Test-Path -Path $path)) {
-            Write-Warning "The selected file does not exist: $path"
-            return $null
-        }
-        if ([System.IO.Path]::GetExtension($path) -ne '.iso') {
-            Write-Warning 'The selected file does not have an .iso extension.'
-        }
-        return $path
+        return [string]$v
     }
 
-    # Offer guided or automated download
-    $choice = Read-Host 'ISO not found. Would you like a guided download [G], automated download [A] or cancel [C]?'
-    switch ($choice.ToUpper()) {
-        'G' {
-            Write-Host 'Opening Microsoft Windows download page in your browser...' -ForegroundColor Cyan
-            # Choose OS version
-            $osChoice = Read-Host 'Which version do you need? [10/11]'
-            switch ($osChoice) {
-                '10' { $url = 'https://www.microsoft.com/software-download/windows10' }
-                '11' { $url = 'https://www.microsoft.com/software-download/windows11' }
-                default {
-                    Write-Warning 'Invalid selection.'
-                    return $null
+    try {
+        $cfg = Initialize-RiDConfig
+        if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
+        $defaultDir = if (_S $cfg['Iso']['DefaultDownloadDir']) { _S $cfg['Iso']['DefaultDownloadDir'] } else { try { Join-Path $env:USERPROFILE 'Downloads' } catch { $env:USERPROFILE } }
+        # Fallback if still empty or invalid
+        if (-not $defaultDir) { try { $defaultDir = (Resolve-Path '.').Path } catch { $defaultDir = $pwd.Path } }
+
+        while ($true) {
+            Clear-Host
+            Write-RiDHeader -Title 'ISO Helper'
+            Write-Host 'Choose an action:' -ForegroundColor Green
+            Write-Host ('Default download dir: ' + $defaultDir) -ForegroundColor DarkGray
+            Write-Host ''
+            Write-Host '  1) Quick: Auto-download Win11 (headless)'
+            Write-Host '  2) Advanced: Choose options + download'
+            Write-Host '  3) Get URL only (no download)'
+            Write-Host '  4) Open Fido UI (interactive)'
+            Write-Host '  5) Install/Update Fido script'
+            Write-Host '  6) List available options (Fido)'
+            Write-Host '  7) Pick existing ISO file'
+            Write-Host '  X) Back'
+            $sel = Read-Host 'Select [1]'
+            if (-not $sel) { $sel = '1' }
+
+            switch ($sel.ToUpper()) {
+                '1' {
+                    try {
+                        # Quick headless path uses our wrapper which will fall back to UI if needed
+                        $langPref = 'en-US'
+                        $iso = Invoke-RiDFidoDownload -Version 'win11' -Language $langPref -Destination $defaultDir -TryNonInteractive
+                        if ($iso) { return $iso }
+                        else { Write-Host 'No ISO selected or download failed.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
                 }
+
+                '2' {
+                    try {
+                        # Advanced headless selection with option prompts
+                        $curVer = Read-Host 'Windows Version [11/10] (default 11)'
+                        if (-not $curVer) { $curVer = '11' }
+                        if ($curVer -notin @('11','10')) { Write-Host 'Invalid version.' -ForegroundColor Yellow; break }
+
+                        $relDef = if (_S $cfg['Iso']['Release']) { _S $cfg['Iso']['Release'] } else { 'Latest' }
+                        $edDef  = if (_S $cfg['Iso']['Edition']) { _S $cfg['Iso']['Edition'] } else { 'Home/Pro' }
+                        $arDef  = if (_S $cfg['Iso']['Arch'])    { _S $cfg['Iso']['Arch'] }    else { 'x64' }
+                        $langDef = 'English International'
+
+                        $rel = Read-Host ("Release (e.g., Latest/23H2) [{0}]" -f $relDef); if (-not $rel) { $rel = $relDef }
+                        $ed  = Read-Host ("Edition (e.g., Home/Pro) [{0}]" -f $edDef);       if (-not $ed)  { $ed  = $edDef }
+                        $ar  = Read-Host ("Arch [x64/x86/arm64] [{0}]" -f $arDef);            if (-not $ar)  { $ar  = $arDef }
+                        $ln  = Read-Host ("Language [{0}]" -f $langDef);                       if (-not $ln)  { $ln  = $langDef }
+                        $dir = Read-Host ("Download directory [{0}]" -f $defaultDir);          if (-not $dir) { $dir = $defaultDir }
+                        if ([string]::IsNullOrWhiteSpace($dir)) { try { $dir = (Resolve-Path '.').Path } catch { $dir = $pwd.Path } }
+                        try { if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null } } catch {}
+
+                        $mode = Read-Host 'Mode: (D)ownload file or (U)RL only? [D]'
+                        $ts = (Get-Date).ToString('yyyyMMdd_HHmmss')
+                        $outName = "Win{0}_{1}_{2}_{3}.iso" -f $curVer,($ln -replace '\\s+',''),$ar,$ts
+                        if ([string]::IsNullOrWhiteSpace($dir)) { throw 'Download directory is empty; cannot build output path.' }
+                        $outPath = Join-Path -Path $dir -ChildPath $outName
+
+                        if ($mode -match '^[Uu]') {
+                            $url = Get-RiDWindowsIso -Version $curVer -Release $rel -Edition $ed -Language $ln -Arch $ar -GetUrl
+                            if ($url) {
+                                Write-Host ("URL: {0}" -f $url) -ForegroundColor Cyan
+                                $copy = Read-Host 'Copy URL to clipboard? [y/N]'
+                                if ($copy -match '^[Yy]') { try { Set-Clipboard -Value $url } catch { Write-Warning 'Clipboard unavailable.' } }
+                                [void](Read-Host 'Enter to continue')
+                            } else {
+                                Write-Host 'Failed to obtain URL.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue')
+                            }
+                        } else {
+                            $file = Get-RiDWindowsIso -Version $curVer -Release $rel -Edition $ed -Language $ln -Arch $ar -OutFile $outPath
+                            if ($file -and (Test-Path -LiteralPath $file)) { return $file }
+                            else { Write-Host 'Download failed.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                        }
+                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                }
+
+                '3' {
+                    try {
+                        $ver = Read-Host 'Windows Version [11/10] (default 11)'; if (-not $ver) { $ver = '11' }
+                        $rel = Read-Host 'Release (e.g., Latest/23H2) [Latest]'; if (-not $rel) { $rel = 'Latest' }
+                        $ed  = Read-Host 'Edition (e.g., Home/Pro) [Home/Pro]';   if (-not $ed)  { $ed  = 'Home/Pro' }
+                        $ln  = Read-Host 'Language [English International]';      if (-not $ln)  { $ln  = 'English International' }
+                        $ar  = Read-Host 'Arch [x64/x86/arm64] [x64]';            if (-not $ar)  { $ar  = 'x64' }
+                        $url = Get-RiDWindowsIso -Version $ver -Release $rel -Edition $ed -Language $ln -Arch $ar -GetUrl
+                        if ($url) { Write-Host ("URL: {0}" -f $url) -ForegroundColor Cyan }
+                        else { Write-Host 'Failed to obtain URL.' -ForegroundColor Yellow }
+                    } catch { Write-Error $_ }
+                    [void](Read-Host 'Enter to continue')
+                }
+
+                '4' {
+                    try {
+                        $verPick = Read-Host 'Version: win11 or win10 [win11]'; if (-not $verPick) { $verPick = 'win11' }
+                        $lang    = Read-Host 'Language (locale or name) [en-US]'; if (-not $lang) { $lang = 'en-US' }
+                        $iso = Invoke-RiDFidoDownload -Version $verPick -Language $lang -Destination $defaultDir
+                        if ($iso) { return $iso }
+                        else { Write-Host 'No ISO selected.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                }
+
+                '5' {
+                    try {
+                        $pin = Read-Host 'Pin Fido to specific commit? (leave blank for latest)'
+                        if ($pin) { $null = Install-RiDFido -PinToCommit $pin -PersistConfig -Apply }
+                        else { $null = Install-RiDFido -PersistConfig -Apply }
+                        Write-Host 'Fido installation attempted. Configure path under Options if needed.' -ForegroundColor Cyan
+                    } catch { Write-Error $_ }
+                    [void](Read-Host 'Enter to continue')
+                }
+
+                '6' {
+                    try {
+                        $v = Read-Host 'List (Win/Rel/Ed/Lang) [Win]'; if (-not $v) { $v = 'Win' }
+                        $ver = Read-Host 'Version for Rel/Ed/Lang [11]'; if (-not $ver) { $ver = '11' }
+                        $rel = Read-Host 'Release for Ed/Lang [Latest]'; if (-not $rel) { $rel = 'Latest' }
+                        $ed  = Read-Host 'Edition for Lang [Home/Pro]';  if (-not $ed)  { $ed  = 'Home/Pro' }
+                        $list = Get-RiDFidoList -List $v -Version $ver -Release $rel -Edition $ed
+                        if ($list -and $list.Count -gt 0) { $list | ForEach-Object { Write-Host ('  ' + $_) } }
+                        else { Write-Host 'No data.' -ForegroundColor Yellow }
+                    } catch { Write-Error $_ }
+                    [void](Read-Host 'Enter to continue')
+                }
+
+                '7' {
+                    try {
+                        $init = if (Test-Path -LiteralPath $defaultDir) { $defaultDir } else { $env:USERPROFILE }
+                        $iso = Show-RiDOpenFileDialog -InitialDirectory $init -Filter 'ISO files (*.iso)|*.iso|All files (*.*)|*.*' -Title 'Select Windows ISO'
+                        if ($iso) { return $iso }
+                        else { Write-Host 'No file selected.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
+                    } catch { Write-Error $_; [void](Read-Host 'Enter to continue') }
+                }
+
+                'X' { return $null }
+                default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; [void](Read-Host 'Enter to continue') }
             }
-            Open-RiDBrowser -Url $url
-            Write-Host 'Follow the instructions on the Microsoft page to download the ISO. Once downloaded, run Open-RiDIsoHelper again and select the file.' -ForegroundColor Yellow
-            return $null
         }
-        'A' {
-            # Automated path using Fido integration (if available)
-            try {
-                $ver = Read-Host 'Version [10/11] (default 11)'
-                if ($ver -ne '10' -and $ver -ne '11') { $ver = '11' }
-                $lang = Read-Host 'Language (e.g., en-US) [default en-US]'
-                if (-not $lang) { $lang = 'en-US' }
-                $cfg = Initialize-RiDConfig
-                $dest = $null
-                if ($cfg['Iso'] -and $cfg['Iso']['DefaultDownloadDir']) { $dest = $cfg['Iso']['DefaultDownloadDir'] }
-                if (-not $dest) { $dest = Read-Host 'Download directory (leave blank for your Downloads folder)' }
-                if (-not $dest) { $dest = [Environment]::GetFolderPath('UserProfile') + '\\Downloads' }
-                $vparam = if ($ver -eq '10') { 'win10' } else { 'win11' }
-                $tryNon = Read-Host 'Try non-interactive mode if supported? [y/N]'
-                $trySwitch = ($tryNon -match '^[Yy]')
-                if ($trySwitch) {
-                    $adv = Read-Host 'Advanced selector? [Y/n]'
-                    if ($adv -notmatch '^[Nn]') {
-                        try {
-                            # Interactive sub-menu powered by headless list APIs
-                            $verList = Get-RiDFidoList -List Win
-                            $verChoices = @('10','11')
-                            if ($verList -and $verList -contains '8.1') { $verChoices = @('10','11') }
-                            Write-Host 'Select Windows version:' -ForegroundColor Cyan
-                            for ($i=0;$i -lt $verChoices.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $verChoices[$i]) }
-                            $sel = Read-Host 'Choice [default 2]'
-                            $verNum = if ($sel -eq '1') { '10' } else { '11' }
-
-                            $relList = Get-RiDFidoList -List Rel -Version $verNum
-                            $relOpts = @('Latest') + $relList
-                            Write-Host 'Select release:' -ForegroundColor Cyan
-                            for ($i=0;$i -lt $relOpts.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $relOpts[$i]) }
-                            $sel = Read-Host 'Choice [default 1]'
-                            $rel = if ($sel -and ($sel -as [int]) -ge 1 -and ($sel -as [int]) -le $relOpts.Count) { $relOpts[([int]$sel-1)] } else { 'Latest' }
-
-                            $edList = Get-RiDFidoList -List Ed -Version $verNum -Release $rel
-                            Write-Host 'Select edition:' -ForegroundColor Cyan
-                            for ($i=0;$i -lt $edList.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $edList[$i]) }
-                            $sel = Read-Host 'Choice [default 1]'
-                            $ed = if ($sel -and ($sel -as [int]) -ge 1 -and ($sel -as [int]) -le $edList.Count) { $edList[([int]$sel-1)] } else { $edList[0] }
-
-                            $langList = Get-RiDFidoList -List Lang -Version $verNum -Release $rel -Edition $ed
-                            Write-Host 'Select language:' -ForegroundColor Cyan
-                            for ($i=0;$i -lt $langList.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $langList[$i]) }
-                            $sel = Read-Host 'Choice [default 1]'
-                            $langSel = if ($sel -and ($sel -as [int]) -ge 1 -and ($sel -as [int]) -le $langList.Count) { $langList[([int]$sel-1)] } else { $langList[0] }
-
-                            $archChoices = @('x64','arm64','x86')
-                            Write-Host 'Select architecture:' -ForegroundColor Cyan
-                            for ($i=0;$i -lt $archChoices.Count;$i++){ Write-Host ("  {0}) {1}" -f ($i+1), $archChoices[$i]) }
-                            $sel = Read-Host 'Choice [default 1]'
-                            $archSel = if ($sel -eq '2') { 'arm64' } elseif ($sel -eq '3') { 'x86' } else { 'x64' }
-
-                            $cfg = Initialize-RiDConfig
-                            if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }
-                            $cfg['Iso']['Release'] = $rel
-                            $cfg['Iso']['Edition'] = $ed
-                            $cfg['Iso']['Arch']    = $archSel
-                            Set-RiDConfig -Config $cfg
-
-                            # Override local variables for this run
-                            $lang = $langSel
-                            $ver = $verNum
-                            $vparam = if ($ver -eq '10') { 'win10' } else { 'win11' }
-                        } catch { Write-Error $_ }
-                    }
-                }
-                if ($trySwitch) {
-                    $cur = Initialize-RiDConfig
-                    $rel = $cur['Iso']['Release']; $ed = $cur['Iso']['Edition']; $ar = $cur['Iso']['Arch']
-                    Write-Host ("Using defaults: Release={0}, Edition={1}, Arch={2}" -f $rel,$ed,$ar) -ForegroundColor DarkCyan
-                }
-                $iso = Invoke-RiDFidoDownload -Version $vparam -Language $lang -Destination $dest -TryNonInteractive:$trySwitch
-                if ($iso) { return $iso } else { return $null }
-            } catch { Write-Error $_; return $null }
-        }
-        default {
-            Write-Host 'Cancelling ISO helper.'
-            return $null
-        }
-    }
+    } catch { Write-Error $_ }
+    return $null
 }

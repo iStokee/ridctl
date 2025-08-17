@@ -17,13 +17,27 @@ function Get-RiDFidoScriptPath {
         return $cfg['Iso']['FidoScriptPath']
     }
     # Default: third_party\fido\Fido.ps1 (preferred) relative to repo root; fallback to Get-WindowsIso.ps1
-    $privateDir = $PSScriptRoot
-    $moduleRoot = Split-Path -Path $privateDir -Parent  # src
-    $repoRoot   = Split-Path -Path $moduleRoot -Parent
-    $default = Join-Path -Path $repoRoot -ChildPath 'third_party\fido\Fido.ps1'
-    if (Test-Path -Path $default) { return $default }
-    $fallback = Join-Path -Path $repoRoot -ChildPath 'third_party\fido\Get-WindowsIso.ps1'
-    if (Test-Path -Path $fallback) { return $fallback }
+    $repoRoot = $null
+    try {
+        $moduleBase = $ExecutionContext.SessionState.Module.ModuleBase
+        if ($moduleBase -and (Test-Path -Path (Join-Path -Path $moduleBase -ChildPath 'ridctl.psd1'))) {
+            $repoRoot = Split-Path -Path $moduleBase -Parent
+        } else {
+            $probe = $PSScriptRoot
+            for ($i = 0; $i -lt 6; $i++) {
+                if (-not $probe) { break }
+                $psd1 = Join-Path -Path (Join-Path -Path $probe -ChildPath 'src') -ChildPath 'ridctl.psd1'
+                if (Test-Path -Path $psd1) { $repoRoot = $probe; break }
+                $probe = Split-Path -Path $probe -Parent
+            }
+        }
+    } catch { }
+    if ($repoRoot) {
+        $default = Join-Path -Path $repoRoot -ChildPath 'third_party\fido\Fido.ps1'
+        if (Test-Path -Path $default) { return $default }
+        $fallback = Join-Path -Path $repoRoot -ChildPath 'third_party\fido\Get-WindowsIso.ps1'
+        if (Test-Path -Path $fallback) { return $fallback }
+    }
     return $null
 }
 
@@ -104,7 +118,8 @@ function Invoke-RiDFidoDownload {
             $psExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1)
             if (-not $psExe) { $psExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1) }
             if (-not $psExe) { $psExe = 'powershell.exe' }
-            Start-Process -FilePath $psExe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"{0}"' -f $fido)) -WindowStyle Normal -WorkingDirectory $Destination | Out-Null
+            # Keep the window open with -NoExit so users can monitor progress/output
+            Start-Process -FilePath $psExe -ArgumentList @('-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-File',('"{0}"' -f $fido)) -WindowStyle Normal -WorkingDirectory $Destination | Out-Null
         } catch {
             Write-Warning ("Failed to start Fido script: {0}" -f $_)
             return $null

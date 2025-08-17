@@ -112,6 +112,14 @@ function Get-RiDDefaultConfig {
     $def['Vmware'] = @{
         'vmrunPath' = ''
     }
+    # Defaults for creating new VMs via the menu
+    $def['VmDefaults'] = @{
+        'DestinationBase' = 'C:\\VMs'
+        'CpuCount'        = '2'
+        'MemoryMB'        = '4096'
+        'DiskGB'          = '60'
+        'Method'          = 'auto'
+    }
     return $def
 }
 
@@ -159,9 +167,16 @@ function Initialize-RiDConfig {
             }
         } catch { }
     }
-
-    # Determine if this will create a new config
-    if (-not (Test-Path -Path $target)) { $script:RiDConfigCreatedNew = $true }
+    
+    # Determine if this is a brand new configuration session.
+    # Consider ANY existing config file (Local/User/System) as existing,
+    # not just the preferred target. This prevents false first-run prompts
+    # when a user config exists but the local file does not.
+    $anyExisting = $false
+    foreach ($p in @($paths.Local, $paths.User, $paths.System)) {
+        if ($p -and (Test-Path -LiteralPath $p)) { $anyExisting = $true; break }
+    }
+    if (-not $anyExisting) { $script:RiDConfigCreatedNew = $true }
 
     $defaults = Get-RiDDefaultConfig
     $merged = @{}
@@ -249,7 +264,7 @@ function _Normalize-RiDConfig {
 
     $cfg = $Config.Clone()
 
-    foreach ($sec in @('Iso','Templates','Share','Vmware','Sync')) {
+    foreach ($sec in @('Iso','Templates','Share','Vmware','Sync','VmDefaults')) {
         if (-not $cfg.ContainsKey($sec) -or -not ($cfg[$sec] -is [System.Collections.IDictionary])) { $cfg[$sec] = @{} }
     }
 
@@ -288,6 +303,13 @@ function _Normalize-RiDConfig {
     } else {
         $cfg['Vms'] = @($vms)
     }
+
+    # VmDefaults coercion
+    $cfg['VmDefaults']['DestinationBase'] = Coerce $cfg['VmDefaults']['DestinationBase']
+    $cfg['VmDefaults']['CpuCount']        = Coerce $cfg['VmDefaults']['CpuCount']
+    $cfg['VmDefaults']['MemoryMB']        = Coerce $cfg['VmDefaults']['MemoryMB']
+    $cfg['VmDefaults']['DiskGB']          = Coerce $cfg['VmDefaults']['DiskGB']
+    $cfg['VmDefaults']['Method']          = Coerce $cfg['VmDefaults']['Method']
 
     return $cfg
 }

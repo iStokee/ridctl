@@ -123,3 +123,12 @@ Next focus:
 - M7 — Guest configure polish + tests (Initialize‑RiDGuest)
 - M9 — Utilities polish for VM wrappers + smoke tests
 - M12 — Tests & CI (ScriptAnalyzer + Pester coverage)
+
+## Progress Update — 2025-08-17
+
+- VM creation UX polish:
+  - Added `VmDefaults` (DestinationBase, CpuCount, MemoryMB, DiskGB, Method) to config
+  - First‑run wizard and Options menu can set VM defaults
+  - Host menu “Create new VM” uses saved defaults and suggests destination path
+- Tool detection:
+  - Honors configured `Vmware.vmrunPath` when resolving `vmrun`

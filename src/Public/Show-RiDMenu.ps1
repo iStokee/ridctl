@@ -17,11 +17,32 @@ function Show-RiDMenu {
     function _WriteBanner { Write-RiDHeader }
     function _ShowStatus {
         $s = Get-RiDStatus
+        Write-RiDReadinessBanner -Status $s
         Write-RiDStatusCards -Status $s
     }
 
     function _Pause {
         [void](Read-Host 'Press Enter to return to the menu')
+    }
+
+    function _ApplyFirstRunDefaults {
+        try {
+            $cfg = Initialize-RiDConfig
+            if (-not $cfg['Share']) { $cfg['Share'] = @{} }
+            if (-not $cfg['State']) { $cfg['State'] = @{} }
+
+            # Ensure default share directory exists if configured
+            $hp = $null
+            try { $hp = [string]$cfg['Share']['HostPath'] } catch { }
+            if ($hp -and -not (Test-Path -LiteralPath $hp)) {
+                New-Item -ItemType Directory -Path $hp -Force | Out-Null
+                Write-Host ("Created shared folder directory: {0}" -f $hp) -ForegroundColor Cyan
+            }
+
+            $cfg['State']['FirstRunCompleted'] = 'true'
+            Set-RiDConfig -Config $cfg | Out-Null
+            Write-Host 'Defaults initialized and saved.' -ForegroundColor Cyan
+        } catch { Write-Error $_ }
     }
 
     function _RunFirstRunWizard {
@@ -72,6 +93,26 @@ function Show-RiDMenu {
             $ans = Read-Host ("vmrun path (optional) [{0}]" -f $curVmrun)
             if ($ans) { $cfg['Vmware']['vmrunPath'] = $ans }
 
+            # VM creation defaults
+            if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} }
+            $curBase = if (_S $cfg['VmDefaults']['DestinationBase']) { _S $cfg['VmDefaults']['DestinationBase'] } else { 'C:\\VMs' }
+            $ans = Read-Host ("Default VM destination base [{0}]" -f $curBase)
+            if ($ans) { $cfg['VmDefaults']['DestinationBase'] = $ans } elseif (-not $cfg['VmDefaults']['DestinationBase']) { $cfg['VmDefaults']['DestinationBase'] = $curBase }
+            $curCpu = if (_S $cfg['VmDefaults']['CpuCount']) { _S $cfg['VmDefaults']['CpuCount'] } else { '2' }
+            $ans = Read-Host ("Default CPU count [{0}]" -f $curCpu)
+            if ($ans) { $cfg['VmDefaults']['CpuCount'] = $ans } elseif (-not $cfg['VmDefaults']['CpuCount']) { $cfg['VmDefaults']['CpuCount'] = $curCpu }
+            $curMem = if (_S $cfg['VmDefaults']['MemoryMB']) { _S $cfg['VmDefaults']['MemoryMB'] } else { '4096' }
+            $ans = Read-Host ("Default Memory MB [{0}]" -f $curMem)
+            if ($ans) { $cfg['VmDefaults']['MemoryMB'] = $ans } elseif (-not $cfg['VmDefaults']['MemoryMB']) { $cfg['VmDefaults']['MemoryMB'] = $curMem }
+            $curDisk = if (_S $cfg['VmDefaults']['DiskGB']) { _S $cfg['VmDefaults']['DiskGB'] } else { '60' }
+            $ans = Read-Host ("Default Disk GB [{0}]" -f $curDisk)
+            if ($ans) { $cfg['VmDefaults']['DiskGB'] = $ans } elseif (-not $cfg['VmDefaults']['DiskGB']) { $cfg['VmDefaults']['DiskGB'] = $curDisk }
+            $curMeth = if (_S $cfg['VmDefaults']['Method']) { _S $cfg['VmDefaults']['Method'] } else { 'auto' }
+            $ans = Read-Host ("Default method [auto/vmcli/vmrun] [{0}]" -f $curMeth)
+            if ($ans) { $cfg['VmDefaults']['Method'] = $ans } elseif (-not $cfg['VmDefaults']['Method']) { $cfg['VmDefaults']['Method'] = $curMeth }
+
+            if (-not $cfg['State']) { $cfg['State'] = @{} }
+            $cfg['State']['FirstRunCompleted'] = 'true'
             Set-RiDConfig -Config $cfg
             Write-Host 'Defaults saved.' -ForegroundColor Cyan
 
@@ -82,6 +123,7 @@ function Show-RiDMenu {
             Write-Host ("  Share: Name={0}, HostPath={1}" -f (_S $cfg['Share']['Name']), (_S $cfg['Share']['HostPath']))
             Write-Host ("  Templates: VMX={0}, Snapshot={1}" -f (_S $cfg['Templates']['DefaultVmx']), (_S $cfg['Templates']['DefaultSnapshot']))
             Write-Host ("  VMware: vmrunPath={0}" -f (_S $cfg['Vmware']['vmrunPath']))
+            Write-Host ("  VM Defaults: Base={0}, CPU={1}, MemMB={2}, DiskGB={3}, Method={4}" -f (_S $cfg['VmDefaults']['DestinationBase']), (_S $cfg['VmDefaults']['CpuCount']), (_S $cfg['VmDefaults']['MemoryMB']), (_S $cfg['VmDefaults']['DiskGB']), (_S $cfg['VmDefaults']['Method']))
 
             # Ensure default share directory exists if configured
             try {
@@ -130,6 +172,12 @@ function Show-RiDMenu {
                 Write-Host ("  9) HostPath           = {0}" -f (_S $cfg['Share']['HostPath']))
                 Write-Host '[VMware Tools]' -ForegroundColor Cyan
                 Write-Host (" 10) vmrunPath          = {0}" -f (_S $cfg['Vmware']['vmrunPath']))
+                Write-Host '[VM Defaults]' -ForegroundColor Cyan
+                Write-Host (" 11) DestinationBase     = {0}" -f (_S $cfg['VmDefaults']['DestinationBase']))
+                Write-Host (" 12) CpuCount            = {0}" -f (_S $cfg['VmDefaults']['CpuCount']))
+                Write-Host (" 13) MemoryMB            = {0}" -f (_S $cfg['VmDefaults']['MemoryMB']))
+                Write-Host (" 14) DiskGB              = {0}" -f (_S $cfg['VmDefaults']['DiskGB']))
+                Write-Host (" 15) Method              = {0}" -f (_S $cfg['VmDefaults']['Method']))
                 Write-Host ''
                 Write-Host '  S) Save   R) Reload   P) Paths   D) Reset Config   X) Back'
                 $sel = Read-Host 'Choose'
@@ -144,8 +192,13 @@ function Show-RiDMenu {
                     '8'  { $v = Read-Host 'Set Share.Name';             if ($v) { $cfg['Share']['Name'] = $v } }
                     '9'  { $v = Read-Host 'Set Share.HostPath';         if ($v) { $cfg['Share']['HostPath'] = $v } }
                     '10' { $v = Read-Host 'Set Vmware.vmrunPath';       if ($v) { $cfg['Vmware']['vmrunPath'] = $v } }
+                    '11' { $v = Read-Host 'Set VmDefaults.DestinationBase'; if ($v) { $cfg['VmDefaults']['DestinationBase'] = $v } }
+                    '12' { $v = Read-Host 'Set VmDefaults.CpuCount';        if ($v) { $cfg['VmDefaults']['CpuCount'] = $v } }
+                    '13' { $v = Read-Host 'Set VmDefaults.MemoryMB';        if ($v) { $cfg['VmDefaults']['MemoryMB'] = $v } }
+                    '14' { $v = Read-Host 'Set VmDefaults.DiskGB';          if ($v) { $cfg['VmDefaults']['DiskGB'] = $v } }
+                    '15' { $v = Read-Host 'Set VmDefaults.Method (auto/vmcli/vmrun)'; if ($v) { $cfg['VmDefaults']['Method'] = $v } }
                     'S'  { try { Set-RiDConfig -Config $cfg; Write-Host 'Configuration saved.' -ForegroundColor Cyan } catch { Write-Error $_ }; _Pause }
-                    'R'  { $cfg = Initialize-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} } }
+                    'R'  { $cfg = Initialize-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} }; if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} } }
                     'P'  {
                         try {
                             $paths = _Get-RiDConfigPaths
@@ -183,11 +236,21 @@ function Show-RiDMenu {
         Clear-Host
         # Ensure config exists and has defaults; safe no-op if already present
         try { Initialize-RiDConfig | Out-Null } catch { }
-        if (-not $script:RiDFirstRunWizardDone -and $script:RiDConfigCreatedNew) {
-            $prompt = Read-Host 'It looks like this is your first run. Configure defaults now? [Y/n]'
-            if ($prompt -notmatch '^[Nn]') { _RunFirstRunWizard }
-            $script:RiDFirstRunWizardDone = $true
-        }
+        # Offer first-run onboarding only once, persisted via config State.FirstRunCompleted
+        try {
+            $cfg = Get-RiDConfig
+            $firstRunCompleted = $false
+            if ($cfg -and $cfg['State'] -and $cfg['State']['FirstRunCompleted']) {
+                $firstRunCompleted = ([string]$cfg['State']['FirstRunCompleted']).ToLowerInvariant() -in @('true','1','yes','y')
+            }
+            if (-not $script:RiDFirstRunWizardDone -and (-not $firstRunCompleted -or $script:RiDConfigCreatedNew)) {
+                $ans = Read-Host 'First-time setup: (D)efaults, (W)izard, or (S)kip? [D]'
+                if ($ans -match '^[Ww]') { _RunFirstRunWizard }
+                elseif ($ans -match '^[Ss]') { }
+                else { _ApplyFirstRunDefaults }
+                $script:RiDFirstRunWizardDone = $true
+            }
+        } catch { }
         _WriteBanner
         _ShowStatus
 
@@ -211,16 +274,28 @@ function Show-RiDMenu {
                 }
                 '2' {
                     try {
-                        $name = Read-Host 'VM Name'
-                        $dest = Read-Host 'Destination folder (e.g. C:\\VMs\\RiDVM1)'
-                        $cpu  = Read-Host 'CPU count (default 2)'
-                        if (-not $cpu) { $cpu = 2 }
-                        $mem  = Read-Host 'Memory MB (default 4096)'
-                        if (-not $mem) { $mem = 4096 }
-                        $disk = Read-Host 'Disk GB (default 60)'
-                        if (-not $disk) { $disk = 60 }
-                        $method = Read-Host 'Method [auto/vmcli/vmrun] (default auto)'
-                        if (-not $method) { $method = 'auto' }
+                        $cfg = Initialize-RiDConfig
+                        if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} }
+                        $defaultName = ('rid-{0}' -f (Get-Date).ToString('yyyyMMdd_HHmm'))
+                        $name = Read-Host ("VM Name [{0}]" -f $defaultName)
+                        if (-not $name) { $name = $defaultName }
+                        $base = if ($cfg['VmDefaults']['DestinationBase']) { [string]$cfg['VmDefaults']['DestinationBase'] } else { '' }
+                        $suggestDest = if ($name -and $base) { Join-Path -Path $base -ChildPath $name } else { '' }
+                        $destPrompt = if ($suggestDest) { ("Destination folder [{0}]" -f $suggestDest) } else { 'Destination folder (e.g. C:\\VMs\\RiDVM1)' }
+                        $dest = Read-Host $destPrompt
+                        if (-not $dest -and $suggestDest) { $dest = $suggestDest }
+                        $defCpu = if ($cfg['VmDefaults']['CpuCount']) { [int]$cfg['VmDefaults']['CpuCount'] } else { 2 }
+                        $defMem = if ($cfg['VmDefaults']['MemoryMB']) { [int]$cfg['VmDefaults']['MemoryMB'] } else { 4096 }
+                        $defDis = if ($cfg['VmDefaults']['DiskGB']) { [int]$cfg['VmDefaults']['DiskGB'] } else { 60 }
+                        $cpu  = Read-Host ("CPU count [{0}]" -f $defCpu)
+                        if (-not $cpu) { $cpu = $defCpu }
+                        $mem  = Read-Host ("Memory MB [{0}]" -f $defMem)
+                        if (-not $mem) { $mem = $defMem }
+                        $disk = Read-Host ("Disk GB [{0}]" -f $defDis)
+                        if (-not $disk) { $disk = $defDis }
+                        $defMethod = if ($cfg['VmDefaults']['Method']) { [string]$cfg['VmDefaults']['Method'] } else { 'auto' }
+                        $method = Read-Host ("Method [auto/vmcli/vmrun] [{0}]" -f $defMethod)
+                        if (-not $method) { $method = $defMethod }
                         $iso  = Read-Host 'ISO path (leave blank to use helper)'
                         if (-not $iso) {
                             $useHelper = Read-Host 'Launch ISO helper now? [Y/n]'
@@ -237,9 +312,19 @@ function Show-RiDMenu {
                 }
                 '3' {
                     try {
-                        $vmx  = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
-                        $name = Read-Host 'Shared folder name (e.g. RiDShare)'
-                        $host1 = Read-Host 'Host path to share (e.g. C:\\RiDShare)'
+                        $cfg = Initialize-RiDConfig
+                        $reg = @(Get-RiDVM)
+                        $defaultVmx = $null
+                        if ($reg -and $reg.Count -gt 0) { $first = $reg | Where-Object { $_.Exists } | Select-Object -First 1; if ($first) { $defaultVmx = $first.VmxPath } }
+                        if (-not $defaultVmx) { $tpl = $cfg['Templates']['DefaultVmx']; if ($tpl -and (Test-Path -LiteralPath $tpl)) { $defaultVmx = $tpl } }
+                        $vmx  = Read-Host ((if ($defaultVmx) { "Path to VMX [{0}]" -f $defaultVmx } else { 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)' }))
+                        if (-not $vmx -and $defaultVmx) { $vmx = $defaultVmx }
+                        $defShare = if ($cfg['Share'] -and $cfg['Share']['Name']) { [string]$cfg['Share']['Name'] } else { 'rid' }
+                        $name = Read-Host ("Shared folder name [{0}]" -f $defShare)
+                        if (-not $name) { $name = $defShare }
+                        $defHost = if ($cfg['Share'] -and $cfg['Share']['HostPath']) { [string]$cfg['Share']['HostPath'] } else { 'C:\\RiDShare' }
+                        $host1 = Read-Host ("Host path to share [{0}]" -f $defHost)
+                        if (-not $host1) { $host1 = $defHost }
                         $preview = Read-Host 'Preview only with -WhatIf? [Y/n]'
                         if ($preview -match '^[Nn]') {
                             Repair-RiDSharedFolder -VmxPath $vmx -ShareName $name -HostPath $host1 -Confirm:$true
@@ -297,7 +382,8 @@ function Show-RiDMenu {
                                             Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
                                             $i++
                                         }
-                                        $sel = Read-Host 'Select index'
+                                        $sel = Read-Host 'Select index [1]'
+                                        if (-not $sel) { $sel = '1' }
                                         if ($sel -match '^[0-9]+$') {
                                             $idx = [int]$sel
                                             if ($idx -ge 1 -and $idx -le $vms.Count) {
@@ -328,7 +414,8 @@ function Show-RiDMenu {
                                             Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
                                             $i++
                                         }
-                                        $sel = Read-Host 'Select index'
+                                        $sel = Read-Host 'Select index [1]'
+                                        if (-not $sel) { $sel = '1' }
                                         if ($sel -match '^[0-9]+$') {
                                             $idx = [int]$sel
                                             if ($idx -ge 1 -and $idx -le $vms.Count) {
@@ -360,7 +447,8 @@ function Show-RiDMenu {
                                             Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
                                             $i++
                                         }
-                                        $sel = Read-Host 'Select index'
+                                        $sel = Read-Host 'Select index [1]'
+                                        if (-not $sel) { $sel = '1' }
                                         if ($sel -match '^[0-9]+$') {
                                             $idx = [int]$sel
                                             if ($idx -ge 1 -and $idx -le $vms.Count) {

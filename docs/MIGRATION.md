@@ -17,8 +17,10 @@ Show-RiDMenu
 ```
 
 2) First run defaults
-- Accept sensible defaults or edit them. Shared folder host path defaults to `C:\\RiDShare` and is created if missing.
-- You can revisit settings under Options.
+- ridctl initializes sensible defaults automatically. You can press Enter to accept prompts.
+- Shared folder host path defaults to `C:\\RiDShare` and is created if missing.
+- VM defaults (destination base, CPU, memory, disk, method) are pre-set and used by the “Create new VM” flow.
+- You can revisit all settings under Options.
 
 3) Register existing VM(s) for friendly names (optional but recommended)
 ```pwsh
@@ -51,9 +53,10 @@ New-RiDVM -Name 'rid-new' -DestinationPath 'C:\\VMs\\rid-new' -CpuCount 4 -Memor
 ```pwsh
 Initialize-RiDGuest -InstallJava -Destination "$env:USERPROFILE\RiD"
 ```
-  This installs 7‑Zip (and optionally Java), downloads the RiD archive, and extracts it.
+ This installs 7‑Zip (and optionally Java), downloads the RiD archive, and extracts it.
 
 Notes
 - Public cmdlets support `-WhatIf/-Confirm` for safe previews.
 - Status cards in the menu show Shared Folder state (green once the host path exists on host; guest can verify via Tools).
 - Excludes for Sync can be set in config `Sync.Excludes`.
+- You can set `Vmware.vmrunPath` and `VmDefaults.*` under Options; creation prompts will use these defaults.

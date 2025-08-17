@@ -20,13 +20,13 @@ function Stop-RiDVM {
         if (-not $resolved) { return }
         $VmxPath = $resolved
     }
-    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
+    $mode = if ($Hard) { 'hard' } else { 'soft' }
+    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Stop VM ({0})" -f $mode))
+    if (-not (Test-RiDVmxPath -VmxPath $VmxPath -RequireExists:$apply)) { Get-RiDVmxPathHelp | Write-Host -ForegroundColor Yellow; return }
     $tools = Get-RiDVmTools
     if (-not $tools.VmrunPath) {
         Write-Warning 'vmrun not found. Unable to stop VM.'
         return
     }
-    $mode = if ($Hard) { 'hard' } else { 'soft' }
-    $apply = $PSCmdlet.ShouldProcess($VmxPath, ("Stop VM ({0})" -f $mode))
     Invoke-RiDVmrun -VmrunPath $tools.VmrunPath -Command 'stop' -Arguments @('"{0}"' -f $VmxPath, $mode) -Apply:$apply
 }
