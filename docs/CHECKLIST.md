@@ -65,7 +65,8 @@
 - **How to test:** Create asymmetric files; run each direction with `-DryRun` (prints plan) and with `-Apply` (performs).
 
 ## M9 — Utilities Polish
-- [ ] Ensure `Start/Stop/Checkpoint-RiDVM` use `ShouldProcess` (`-WhatIf/-Confirm`) and show clear errors; add smoke tests.
+- [~] Ensure `Start/Stop/Checkpoint-RiDVM` use `ShouldProcess` (`-WhatIf/-Confirm`) and show clear errors; add smoke tests.
+  - Cmdlets now use `ShouldProcess` and validate VMX with helpful guidance; smoke tests still pending.
 - **How to test:** Use `-WhatIf` to preview and `-Confirm` to run for a known VM; verify outcomes and messages.
 
 ## M10 — Menu Wiring for Full Flows

@@ -41,6 +41,8 @@ Note: The default ISO download directory across ridctl is `C:\\ISO`. You can cha
   - Guest: Admin state, winget/choco/BITS availability, TLS enabled, 7‑Zip/Java presence, RiD folder exists, shared folder UNC. Actions to install Chocolatey, install/update winget (App Installer), install 7‑Zip/Java, or open the Guest Software Helper.
   - Accessible via `Show-RiDMenu` on both Host (option 6) and Guest (option 3).
 
+Status cards also indicate ISO availability as “Available” when at least one `.iso` is present under your configured `Iso.DefaultDownloadDir` (defaults to `C:\\ISO`).
+
 Registered VMs (friendlier than typing .vmx paths):
 
 - `Register-RiDVM -Name <friendly> -VmxPath <path>`: Registers an existing VM for easy reference.
@@ -78,7 +80,7 @@ From the host menu, choose `1) Create new VM`. The flow pre-fills values from yo
 
 ## Virtualization Readiness
 
-When the host menu opens, a readiness banner summarizes whether VMware Workstation is installed and if virtualization is ready or conflicted. Use `Test-RiDVirtualization -Detailed` for a deeper breakdown.
+When the host menu opens, the status cards summarize whether VMware Workstation is installed and if virtualization is ready or conflicted. Use `Test-RiDVirtualization -Detailed` for a deeper breakdown.
 
 Use `Test-RiDVirtualization [-Detailed]` on the host to verify readiness:
 
@@ -143,7 +145,7 @@ Notes:
  
 ## Options Menu
 
-From `Show-RiDMenu` on host, select `8) Options` to view/edit settings. You can always press Enter to keep the current value. Groups:
+From `Show-RiDMenu` on host, select `7) Options` to view/edit settings. You can always press Enter to keep the current value. Groups:
 - ISO: `Iso.DefaultDownloadDir`, `Iso.FidoScriptPath`, `Iso.Release`, `Iso.Edition`, `Iso.Arch`
 - Templates: `Templates.DefaultVmx`, `Templates.DefaultSnapshot`
 - Shared Folder: `Share.Name`, `Share.HostPath` (default `C:\RiDShare`)

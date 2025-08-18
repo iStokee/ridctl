@@ -60,6 +60,10 @@ function Write-RiDStatusCards {
             $virtText = 'Not Ready'; $virtColor = 'Red'
         }
         Write-Host ("Virtualization: {0}" -f $virtText) -ForegroundColor $virtColor
+        if ($Status.VirtualizationConflicted -eq $true -and $Status.VirtualizationConflicts -and $Status.VirtualizationConflicts.Count -gt 0) {
+            $conf = ($Status.VirtualizationConflicts -join ', ')
+            Write-Host ("Conflicts: {0}" -f $conf) -ForegroundColor Yellow
+        }
         # VMware Workstation presence is a fatal readiness item for VMware flows
         $vmwText = if ($Status.VmwareInstalled -eq $true) { 'Installed' } elseif ($Status.VmwareInstalled -eq $false) { 'Missing' } else { 'Unknown' }
         $vmwColor = if ($Status.VmwareInstalled -eq $true) { 'Green' } elseif ($Status.VmwareInstalled -eq $false) { 'Red' } else { 'Yellow' }

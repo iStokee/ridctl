@@ -41,8 +41,17 @@ function Get-RiDAggregateStatus {
         if ($virtInfo.DeviceGuardVBSRunning) { $conflictNames += 'Device Guard / VBS (running)' }
     }
 
-    # Placeholders / simple detection
+    # ISO availability: consider available if any *.iso exists in configured download dir
     $isoAvailable   = $false
+    try {
+        $cfgIsoDir = $null
+        try { if ($cfg['Iso'] -and $cfg['Iso']['DefaultDownloadDir']) { $cfgIsoDir = [string]$cfg['Iso']['DefaultDownloadDir'] } } catch { }
+        if (-not $cfgIsoDir) { $cfgIsoDir = 'C:\\ISO' }
+        if ($cfgIsoDir -and (Test-Path -LiteralPath $cfgIsoDir)) {
+            $anyIso = Get-ChildItem -LiteralPath $cfgIsoDir -Filter '*.iso' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($anyIso) { $isoAvailable = $true }
+        }
+    } catch { }
     $sharedFolderOk = $false
     $syncStatus     = 'Unknown'
 
