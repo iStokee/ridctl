@@ -111,6 +111,12 @@ function Get-RiDDefaultConfig {
     $def['Vmware'] = @{
         'vmrunPath' = ''
     }
+    $def['HyperV'] = @{
+        'SwitchName' = 'Default Switch'
+    }
+    $def['Hypervisor'] = @{
+        'Type' = 'vmware'  # 'vmware' | 'hyperv' | 'auto'
+    }
     # Defaults for creating new VMs via the menu
     $def['VmDefaults'] = @{
         'DestinationBase' = 'C:\\VMs'
@@ -263,9 +269,10 @@ function _Normalize-RiDConfig {
 
     $cfg = $Config.Clone()
 
-    foreach ($sec in @('Iso','Templates','Share','Vmware','Sync','VmDefaults')) {
+    foreach ($sec in @('Iso','Templates','Share','Vmware','HyperV','Sync','VmDefaults')) {
         if (-not $cfg.ContainsKey($sec) -or -not ($cfg[$sec] -is [System.Collections.IDictionary])) { $cfg[$sec] = @{} }
     }
+    if (-not $cfg.ContainsKey('Hypervisor') -or -not ($cfg['Hypervisor'] -is [System.Collections.IDictionary])) { $cfg['Hypervisor'] = @{} }
 
     $cfg['Iso']['DefaultDownloadDir'] = Coerce $cfg['Iso']['DefaultDownloadDir']
     $cfg['Iso']['FidoScriptPath']     = Coerce $cfg['Iso']['FidoScriptPath']
@@ -280,6 +287,8 @@ function _Normalize-RiDConfig {
     $cfg['Share']['HostPath'] = Coerce $cfg['Share']['HostPath']
 
     $cfg['Vmware']['vmrunPath'] = Coerce $cfg['Vmware']['vmrunPath']
+    $cfg['HyperV']['SwitchName'] = Coerce $cfg['HyperV']['SwitchName']
+    $cfg['Hypervisor']['Type']   = Coerce $cfg['Hypervisor']['Type']
 
     # Sync section
     $cfg['Sync']['DefaultLocalPath'] = Coerce $cfg['Sync']['DefaultLocalPath']
@@ -311,6 +320,31 @@ function _Normalize-RiDConfig {
     $cfg['VmDefaults']['Method']          = Coerce $cfg['VmDefaults']['Method']
 
     return $cfg
+}
+
+function Get-RiDProviderPreference {
+    [CmdletBinding()] param(
+        [Parameter()][hashtable]$Config
+    )
+    if (-not $Config) { $Config = Get-RiDConfig }
+    $type = $null
+    try { if ($Config['Hypervisor'] -and $Config['Hypervisor']['Type']) { $type = [string]$Config['Hypervisor']['Type'] } } catch { }
+    if ($type -and $type.ToLowerInvariant() -ne 'auto') { return $type.ToLowerInvariant() }
+    # Auto: prefer VMware when detected; else Hyper-V; else $null
+    $virt = $null
+    try { $virt = Get-RiDVirtSupport } catch { }
+    # Prefer VMware via either VirtSupport.VmwarePresent (if provided) or Workstation info
+    try {
+        if ($virt -and $virt.PSObject.Properties.Name -contains 'VmwarePresent' -and $virt.VmwarePresent) { return 'vmware' }
+    } catch { }
+    try {
+        $wk = Get-RiDWorkstationInfo
+        if ($wk -and $wk.Installed) { return 'vmware' }
+    } catch { }
+    try {
+        if ($virt -and $virt.HyperVPresent) { return 'hyperv' }
+    } catch { }
+    return $null
 }
 
 

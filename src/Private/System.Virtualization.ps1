@@ -30,6 +30,8 @@ function Get-RiDVirtSupport {
         VirtualMachinePlatformPresent = $null
         WindowsHypervisorPlatformPresent = $null
         WslPresent                    = $null
+        HyperVModule                  = $null
+        WindowsHypervisorPlatform     = $null
         HypervisorLaunchTypeActive    = $null
         MemoryIntegrityEnabled        = $null
         HypervisorPresent             = $null
@@ -70,30 +72,49 @@ function Get-RiDVirtSupport {
     try {
         # Only call Get-WindowsOptionalFeature if running on Windows and command available
         if (Get-Command -Name Get-WindowsOptionalFeature -ErrorAction SilentlyContinue) {
-            $hyperV = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
-            if ($null -ne $hyperV) {
-                $result.HyperVPresent = ($hyperV.State -eq 'Enabled')
-            }
-            $vmp = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -ErrorAction SilentlyContinue
-            if ($null -ne $vmp) {
-                $result.VirtualMachinePlatformPresent = ($vmp.State -eq 'Enabled')
-            }
-            $whp = Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -ErrorAction SilentlyContinue
+            try { $hyperV = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue } catch {}
+            if ($null -ne $hyperV) { $result.HyperVPresent = ($hyperV.State -eq 'Enabled') }
+
+            try { $vmp = Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -ErrorAction SilentlyContinue } catch {}
+            if ($null -ne $vmp) { $result.VirtualMachinePlatformPresent = ($vmp.State -eq 'Enabled') }
+
+            try { $whp = Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -ErrorAction SilentlyContinue } catch {}
             if ($null -ne $whp) {
                 $result.WindowsHypervisorPlatformPresent = ($whp.State -eq 'Enabled')
+                $result.WindowsHypervisorPlatform       = ($whp.State -eq 'Enabled')
             }
-            $wsl = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue
-            if ($null -ne $wsl) {
-                $result.WslPresent = ($wsl.State -eq 'Enabled')
-            }
-            $wsb = Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -ErrorAction SilentlyContinue
-            if ($null -ne $wsb) {
-                $result.WindowsSandboxPresent = ($wsb.State -eq 'Enabled')
-            }
+
+            try { $wsl = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue } catch {}
+            if ($null -ne $wsl) { $result.WslPresent = ($wsl.State -eq 'Enabled') }
+
+            try { $wsb = Get-WindowsOptionalFeature -Online -FeatureName Containers-DisposableClientVM -ErrorAction SilentlyContinue } catch {}
+            if ($null -ne $wsb) { $result.WindowsSandboxPresent = ($wsb.State -eq 'Enabled') }
         }
-    } catch {
-        Write-Verbose "Failed to query optional features: $_"
+    } catch { Write-Verbose "Failed to query optional features: $_" }
+
+    # Hyper-V PowerShell module presence
+    try { $result.HyperVModule = [bool](Get-Module -ListAvailable -Name Hyper-V) } catch { $result.HyperVModule = $false }
+
+    # Robust WSL detection (Store-based and legacy)
+    try { $wslFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue } catch {}
+    $wslExe  = Get-Command wsl.exe -ErrorAction SilentlyContinue
+    $wslOk   = $false
+    $wslText = ''
+    if ($wslExe) {
+        try {
+            $wslText = (& $wslExe.Source --version) 2>$null | Out-String
+            if ($LASTEXITCODE -eq 0 -and $wslText) { $wslOk = $true }
+        } catch {}
+        if (-not $wslOk) {
+            try {
+                $wslText = (& $wslExe.Source --status) 2>$null | Out-String
+                if ($LASTEXITCODE -eq 0 -or ($wslText -match 'Default Version')) { $wslOk = $true }
+            } catch {}
+        }
     }
+    try { $wslReg = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Lxss' } catch { $wslReg = $false }
+    if ($null -ne $wslFeature -and ($wslFeature.State -eq 'Enabled')) { $result.WslPresent = $true }
+    elseif ($wslOk -or $wslReg) { $result.WslPresent = $true }
 
     # bcdedit hypervisorlaunchtype (if 'Auto' or 'On', Hyper-V hypervisor is active)
     try {

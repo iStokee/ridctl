@@ -61,7 +61,7 @@
     PrivateData = @{
         PSData = @{
             # Tags applied to this module. These help with module discovery in online galleries.
-            Tags = @('rid','vmware','cli','tui')
+            Tags = @('rid','vmware','hyper-v','cli','tui')
             # A URL to the license for this module.
             LicenseUri = ''
             # A URL to the main website for this project.

@@ -64,11 +64,33 @@ function Write-RiDStatusCards {
             $conf = ($Status.VirtualizationConflicts -join ', ')
             Write-Host ("Conflicts: {0}" -f $conf) -ForegroundColor Yellow
         }
-        # VMware Workstation presence is a fatal readiness item for VMware flows
+        # Provider cards: VMware + Hyper-V
         $vmwText = if ($Status.VmwareInstalled -eq $true) { 'Installed' } elseif ($Status.VmwareInstalled -eq $false) { 'Missing' } else { 'Unknown' }
         $vmwColor = if ($Status.VmwareInstalled -eq $true) { 'Green' } elseif ($Status.VmwareInstalled -eq $false) { 'Red' } else { 'Yellow' }
         $vmwLabel = if ($Status.VmwareVersion) { "VMware Workstation: {0} (v{1})" -f $vmwText, $Status.VmwareVersion } else { "VMware Workstation: {0}" -f $vmwText }
         Write-Host $vmwLabel -ForegroundColor $vmwColor
+
+        $hvText = if ($Status.HyperVPresent -eq $true) { 'Present' } elseif ($Status.HyperVPresent -eq $false) { 'Not Present' } else { 'Unknown' }
+        $hvColor = if ($Status.HyperVPresent -eq $true) { 'Green' } elseif ($Status.HyperVPresent -eq $false) { 'Yellow' } else { 'Yellow' }
+        $modText = if ($Status.HyperVModule -eq $true) { 'OK' } elseif ($Status.HyperVModule -eq $false) { 'Missing' } else { 'Unknown' }
+        Write-Host ("Hyper-V: {0} (Module: {1})" -f $hvText, $modText) -ForegroundColor $hvColor
+
+        # Provider display: coerce to a clean string
+        $provTxt = ''
+        try {
+            $provRes = $Status.ProviderResolved
+            $provSel = $Status.ProviderSelected
+            if ($provRes -is [string] -and $provRes) { $provTxt = $provRes }
+            elseif ($provSel -is [string] -and $provSel) { $provTxt = $provSel }
+            elseif ($provSel -is [psobject] -and ($provSel.PSObject.Properties.Name -contains 'Type')) { $provTxt = [string]$provSel.Type }
+            elseif ($provSel -is [System.Collections.IDictionary] -and $provSel.Contains('Type')) { $provTxt = [string]$provSel['Type'] }
+        } catch { }
+        if ($provTxt -and $provTxt -ne 'System.Collections.Hashtable') {
+            Write-Host ("Provider: {0}" -f $provTxt) -ForegroundColor White
+        }
+        if ($Status.ProviderResolved -eq 'vmware' -and $Status.HyperVPresent -and -not $Status.WHPPresent) {
+            Write-Host "Advisory: Enable 'Windows Hypervisor Platform' for best side-by-side compatibility." -ForegroundColor Yellow
+        }
     }
 
     $isoText  = _Format-RiDStateText -State $Status.IsoAvailable -TrueText 'Available' -FalseText 'Missing'

@@ -13,10 +13,13 @@ function Get-RiDVM {
     $objs = @()
     foreach ($v in $list) {
         $exists = $false
-        if ($v.VmxPath) { $exists = Test-Path -Path $v.VmxPath }
+        if ($v.VmxPath) { $exists = Test-Path -LiteralPath $v.VmxPath }
+        $prov = ''
+        try { if ($v.PSObject.Properties.Name -contains 'Provider') { $prov = [string]$v.Provider } } catch { }
         $objs += [pscustomobject]@{
             Name     = $v.Name
             VmxPath  = $v.VmxPath
+            Provider = $prov
             Exists   = [bool]$exists
             ShareName= $v.ShareName
             HostPath = $v.HostPath
@@ -28,4 +31,3 @@ function Get-RiDVM {
     }
     return $objs
 }
-

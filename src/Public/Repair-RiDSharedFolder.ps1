@@ -28,6 +28,13 @@ function Repair-RiDSharedFolder {
         [Parameter(Mandatory=$true)] [string]$ShareName,
         [Parameter(Mandatory=$true)] [string]$HostPath
     )
+    # Branch by provider
+    $cfg = Get-RiDConfig
+    $provider = Get-RiDProviderPreference -Config $cfg
+    if ($provider -eq 'hyperv') {
+        Write-Warning 'Repair-RiDSharedFolder is not applicable to Hyper-V. Use Sync-RiDScripts with -Name and -GuestPath (GSI copy) or map an SMB share inside the guest.'
+        return
+    }
     if ($PSCmdlet.ParameterSetName -eq 'ByName') {
         $resolved = Resolve-RiDVmxFromName -Name $Name
         if (-not $resolved) { return }

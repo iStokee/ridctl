@@ -25,6 +25,8 @@ function Get-RiDChecklistStatus {
         $res['Virtualization Ready'] = $agg.VirtualizationOk
         $res['VMware Installed']     = $agg.VmwareInstalled
         $res['VMware Version']       = $agg.VmwareVersion
+        $res['Hyper-V Present']      = $agg.HyperVPresent
+        $res['Hyper-V Module']       = $agg.HyperVModule
         try { $wk = Get-RiDWorkstationInfo } catch {}
         $tools = Get-RiDVmTools
         $vmrunPath = ''
@@ -33,6 +35,8 @@ function Get-RiDChecklistStatus {
         try { if ($tools -and $tools.VmCliPath)  { $vmcliPath = [string]$tools.VmCliPath } } catch { }
         $res['vmrun path'] = $vmrunPath
         $res['vmcli path'] = $vmcliPath
+        $res['Provider (config)'] = if ($agg.ProviderSelected) { $agg.ProviderSelected } else { 'vmware' }
+        $res['Provider (resolved)'] = if ($agg.ProviderResolved) { $agg.ProviderResolved } else { '' }
 
         $shareHost = if ($cfg['Share'] -and $cfg['Share']['HostPath']) { [string]$cfg['Share']['HostPath'] } else { '' }
         $res['Share host path exists'] = if ($shareHost) { Test-Path -LiteralPath $shareHost } else { $false }
@@ -58,6 +62,14 @@ function Get-RiDChecklistStatus {
 
         $vms = @(Get-RiDVM)
         $res['Registered VMs'] = $vms.Count
+
+        # Advisory: If provider is vmware and Hyper-V present but WHP disabled, show non-blocking warning
+        try {
+            $prov = if ($agg.ProviderResolved) { $agg.ProviderResolved } else { 'vmware' }
+            if ($prov -eq 'vmware' -and $agg.HyperVPresent -and -not $agg.WHPPresent) {
+                $res['Advisory'] = "Enable 'Windows Hypervisor Platform' for better side-by-side compatibility."
+            }
+        } catch { }
     }
 
     return [pscustomobject]$res

@@ -15,6 +15,18 @@ function Start-RiDVM {
         [Parameter(ParameterSetName='ByPath', Mandatory=$true)] [string]$VmxPath,
         [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name
     )
+    # Resolve provider preference
+    $cfg = Get-RiDConfig
+    $provider = Get-RiDProviderPreference -Config $cfg
+    if ($provider -eq 'hyperv') {
+        if ($PSCmdlet.ParameterSetName -ne 'ByName') {
+            throw 'When using Hyper-V provider, please specify -Name to identify the VM.'
+        }
+        if ($PSCmdlet.ShouldProcess($Name, 'Start Hyper-V VM')) {
+            return (Start-RiDHvVM -Name $Name)
+        }
+        return
+    }
     if ($PSCmdlet.ParameterSetName -eq 'ByName') {
         $resolved = Resolve-RiDVmxFromName -Name $Name
         if (-not $resolved) { return }

@@ -67,6 +67,7 @@ function Show-RiDMenu {
             if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }
             if (-not $cfg['Share']) { $cfg['Share'] = @{} }
             if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} }
+            if (-not $cfg['Hypervisor']) { $cfg['Hypervisor'] = @{} }
 
             Write-Host 'First-time setup: configure default options' -ForegroundColor Green
             Write-Host 'You can change these later under Options.' -ForegroundColor Yellow
@@ -202,6 +203,8 @@ function Show-RiDMenu {
                 Write-Host (" 13) MemoryMB            = {0}" -f (_S $cfg['VmDefaults']['MemoryMB']))
                 Write-Host (" 14) DiskGB              = {0}" -f (_S $cfg['VmDefaults']['DiskGB']))
                 Write-Host (" 15) Method              = {0}" -f (_S $cfg['VmDefaults']['Method']))
+                Write-Host '[Hypervisor]' -ForegroundColor Cyan
+                Write-Host (" 16) Type                = {0}" -f (if ($cfg['Hypervisor']['Type']) { _S $cfg['Hypervisor']['Type'] } else { 'vmware' }))
                 Write-Host ''
                 Write-Host '  S) Save   R) Reload   P) Paths   W) First-run Wizard   D) Reset Config   X) Back'
                 $sel = Read-Host 'Select an option'
@@ -221,8 +224,13 @@ function Show-RiDMenu {
                     '13' { $v = Read-Host 'Set VmDefaults.MemoryMB';        if ($v) { $cfg['VmDefaults']['MemoryMB'] = $v } }
                     '14' { $v = Read-Host 'Set VmDefaults.DiskGB';          if ($v) { $cfg['VmDefaults']['DiskGB'] = $v } }
                     '15' { $v = Read-Host 'Set VmDefaults.Method (auto/vmcli/vmrun)'; if ($v) { $cfg['VmDefaults']['Method'] = $v } }
+                    '16' {
+                        $cur = if ($cfg['Hypervisor']['Type']) { [string]$cfg['Hypervisor']['Type'] } else { 'vmware' }
+                        $v = Read-Host ("Set Hypervisor.Type [vmware/hyperv/auto] [{0}]" -f $cur)
+                        if ($v) { $cfg['Hypervisor']['Type'] = $v }
+                    }
                     'S'  { try { Set-RiDConfig -Config $cfg; Write-Host 'Configuration saved.' -ForegroundColor Cyan } catch { Write-Error $_ }; _Pause }
-                    'R'  { $cfg = Initialize-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} }; if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} } }
+                    'R'  { $cfg = Initialize-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} }; if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} }; if (-not $cfg['Hypervisor']) { $cfg['Hypervisor'] = @{} } }
                     'P'  {
                         try {
                             $paths = _Get-RiDConfigPaths
@@ -390,20 +398,33 @@ function Show-RiDMenu {
                         if (-not $vms -or $vms.Count -eq 0) {
                             Write-Host 'No VMs registered yet.' -ForegroundColor Yellow
                             if (Read-RiDYesNo -Prompt 'Register an existing VM now?' -Default Yes) {
+                                $defProv = try { (Get-RiDProviderPreference) } catch { 'vmware' }
+                                $prov = Read-Host ("Provider [vmware/hyperv] [{0}]" -f $defProv)
+                                if (-not $prov) { $prov = $defProv }
                                 $nm = Read-Host 'Friendly name'
-                                $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
-                                try { 
-                                    Register-RiDVM -Name $nm -VmxPath $vx
-                                    $count = (Get-RiDVM | Measure-Object).Count
-                                    Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
-                                } catch { Write-Error $_ }
+                                if ($prov -eq 'hyperv') {
+                                    try {
+                                        Register-RiDVM -Name $nm -Provider hyperv
+                                        $count = (Get-RiDVM | Measure-Object).Count
+                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
+                                    } catch { Write-Error $_ }
+                                } else {
+                                    $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
+                                    try { 
+                                        Register-RiDVM -Name $nm -VmxPath $vx -Provider vmware
+                                        $count = (Get-RiDVM | Measure-Object).Count
+                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
+                                    } catch { Write-Error $_ }
+                                }
                             }
                         } else {
                             Write-Host 'Registered VMs:' -ForegroundColor Green
                             $i = 1
                             foreach ($vm in $vms) {
                                 $exists = if ($vm.Exists) { 'Yes' } else { 'No' }
-                                Write-Host ("  {0}) {1} -> {2}  [{3}]" -f $i, ([string]$vm.Name), ([string]$vm.VmxPath), $exists)
+                                $prov = if ($vm.Provider) { $vm.Provider } else { '' }
+                                $pathText = if ($prov -eq 'hyperv' -and (-not $vm.VmxPath)) { '—' } else { ([string]$vm.VmxPath) }
+                                Write-Host ("  {0}) {1} ({2}) -> {3}  [{4}]" -f $i, ([string]$vm.Name), $prov, $pathText, $exists)
                                 $i++
                             }
                             Write-Host '  r) Register another VM'
@@ -414,7 +435,8 @@ function Show-RiDMenu {
                                 $idx = [int]$sel
                                 if ($idx -ge 1 -and $idx -le $vms.Count) {
                                     $vm = $vms[$idx-1]
-                                    Write-Host ("Selected: {0} -> {1}" -f $vm.Name, $vm.VmxPath) -ForegroundColor Cyan
+                                    $selLabel = if ($vm.Provider -eq 'hyperv') { ("Selected: {0} (Hyper-V)" -f $vm.Name) } else { ("Selected: {0} -> {1}" -f $vm.Name, $vm.VmxPath) }
+                                    Write-Host $selLabel -ForegroundColor Cyan
                                     Write-Host '  a) Start'
                                     Write-Host '  b) Stop'
                                     Write-Host '  c) Snapshot'
@@ -436,13 +458,24 @@ function Show-RiDMenu {
                                     }
                                 }
                             } elseif ($sel.ToLower() -eq 'r') {
+                                $defProv = try { (Get-RiDProviderPreference) } catch { 'vmware' }
+                                $prov = Read-Host ("Provider [vmware/hyperv] [{0}]" -f $defProv)
+                                if (-not $prov) { $prov = $defProv }
                                 $nm = Read-Host 'Friendly name'
-                                $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
-                                try { 
-                                    Register-RiDVM -Name $nm -VmxPath $vx
-                                    $count = (Get-RiDVM | Measure-Object).Count
-                                    Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
-                                } catch { Write-Error $_ }
+                                if ($prov -eq 'hyperv') {
+                                    try { 
+                                        Register-RiDVM -Name $nm -Provider hyperv
+                                        $count = (Get-RiDVM | Measure-Object).Count
+                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
+                                    } catch { Write-Error $_ }
+                                } else {
+                                    $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
+                                    try { 
+                                        Register-RiDVM -Name $nm -VmxPath $vx -Provider vmware
+                                        $count = (Get-RiDVM | Measure-Object).Count
+                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
+                                    } catch { Write-Error $_ }
+                                }
                             } elseif ($sel.ToLower() -eq 'u') {
                                 $nm = Read-Host 'Name to unregister'
                                 try { 
@@ -475,6 +508,13 @@ function Show-RiDMenu {
                 '2' {
                     try {
                         $dir = Read-Host 'Direction: FromShare (F), ToShare (T) or Bidirectional (B) [B]'
+                        $prov = try { (Get-RiDProviderPreference) } catch { '' }
+                        if ($prov -eq 'hyperv' -and (!$dir -or $dir.ToUpper() -eq 'B')) {
+                            Write-Host 'For two-way sync on Hyper-V, map an SMB share or use Enhanced Session Mode.' -ForegroundColor Yellow
+                            Write-Host 'Tip: net use Z: \\\\\\<host>\\share /USER:<user>' -ForegroundColor DarkGray
+                            _Pause
+                            break
+                        }
                         $isDry = -not (Read-RiDYesNo -Prompt 'Apply changes?' -Default No)
                         switch ($dir.ToUpper()) {
                             'F' { Sync-RiDScripts -FromShare -DryRun:$isDry }

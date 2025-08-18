@@ -23,27 +23,53 @@ function Register-RiDVM {
     .PARAMETER Notes
         Optional note for display.
     #>
-    [CmdletBinding(SupportsShouldProcess)]
+    [CmdletBinding(SupportsShouldProcess, DefaultParameterSetName='ByVmware')]
     param(
-        [Parameter(Mandatory=$true)] [string]$Name,
-        [Parameter(Mandatory=$true)] [string]$VmxPath,
+        # Shared param (mandatory in both sets)
+        [Parameter(ParameterSetName='ByVmware', Mandatory=$true)]
+        [Parameter(ParameterSetName='ByHyperV', Mandatory=$true)]
+        [string]$Name,
+
+        # VMware parameter set: requires VMX path
+        [Parameter(ParameterSetName='ByVmware', Mandatory=$true)]
+        [string]$VmxPath,
+
+        # Provider: optional for VMware, mandatory for Hyper-V; defaults resolved if omitted
+        [Parameter(ParameterSetName='ByVmware')]
+        [Parameter(ParameterSetName='ByHyperV', Mandatory=$true)]
+        [ValidateSet('vmware','hyperv')]
+        [string]$Provider,
+
         [string]$ShareName,
         [string]$HostPath,
         [string]$Notes
     )
 
     try {
+        if ($PSCmdlet.ParameterSetName -eq 'ByHyperV' -and $Provider -and $Provider -ne 'hyperv') {
+            throw "For ByHyperV parameter set, -Provider must be 'hyperv'."
+        }
+        if (-not $Provider) {
+            try { $Provider = (Get-RiDProviderPreference) } catch { $Provider = 'vmware' }
+        }
+
+        # When Hyper-V provider is selected, omit VMX path in the registry.
+        if ($Provider -eq 'hyperv') {
+            $VmxPath = ''
+        }
         $entry = @{
             Name      = $Name
             VmxPath   = $VmxPath
+            Provider  = $Provider
             ShareName = $ShareName
             HostPath  = $HostPath
             Notes     = $Notes
         }
 
-        $null = Add-RiDVmRegistryEntry -Entry $entry
-        # Return the newly registered entry (handy in pipelines/tests)
-        return (Get-RiDVmRegistry | Where-Object { $_.Name -eq $Name } | Select-Object -First 1)
+        if ($PSCmdlet.ShouldProcess($Name, 'Register VM')) {
+            $null = Add-RiDVmRegistryEntry -Entry $entry
+            return (Get-RiDVmRegistry | Where-Object { $_.Name -eq $Name } | Select-Object -First 1)
+        }
     } catch {
         Write-Error $_
     }

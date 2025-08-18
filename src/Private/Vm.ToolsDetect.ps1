@@ -33,7 +33,7 @@ function Get-RiDVmTools {
             'C:\\Program Files (x86)\\VMware\\VMware Workstation\\vmrun.exe'
         )
         foreach ($p in $possible) {
-            if (Test-Path -Path $p) { $vmrun = $p; break }
+            if (Test-Path -LiteralPath $p) { $vmrun = $p; break }
         }
     }
     [pscustomobject]@{

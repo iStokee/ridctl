@@ -18,6 +18,16 @@ function Checkpoint-RiDVM {
         [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name,
         [Parameter(Mandatory=$true)] [string]$SnapshotName
     )
+    # Resolve provider preference
+    $cfg = Get-RiDConfig
+    $provider = Get-RiDProviderPreference -Config $cfg
+    if ($provider -eq 'hyperv') {
+        if ($PSCmdlet.ParameterSetName -ne 'ByName') { throw 'When using Hyper-V provider, please specify -Name to identify the VM.' }
+        if ($PSCmdlet.ShouldProcess($Name, ("Create Hyper-V checkpoint '{0}'" -f $SnapshotName))) {
+            return (Checkpoint-RiDHvVM -Name $Name -CheckpointName $SnapshotName)
+        }
+        return
+    }
     if ($PSCmdlet.ParameterSetName -eq 'ByName') {
         $resolved = Resolve-RiDVmxFromName -Name $Name
         if (-not $resolved) { return }

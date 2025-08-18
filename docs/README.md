@@ -49,8 +49,34 @@ When you run `Show-RiDMenu` on the host, the status cards summarize whether VMwa
 - Virtualization: Ready/Conflicted/Not Ready.
   - Ready: CPU VT is enabled and no blocking features detected.
   - Conflicted: VT is enabled, but Windows features like Hyper-V, Virtual Machine Platform, Windows Hypervisor Platform, Device Guard/VBS, or Memory Integrity (HVCI) are enabled.
-  - Not Ready: CPU/BIOS virtualization is disabled or not supported.
+- Not Ready: CPU/BIOS virtualization is disabled or not supported.
 - Next steps: Use `Test-RiDVirtualization -Detailed` for actionable guidance (disable conflicting features, `bcdedit /set hypervisorlaunchtype off`, turn off Memory Integrity, reboot).
+
+## Choose Your Hypervisor
+
+ridctl can operate with VMware Workstation or Hyper‑V:
+
+- Config: set `Hypervisor.Type` to `vmware`, `hyperv`, or `auto` (default `vmware`).
+- Auto preference: VMware when detected, else Hyper‑V when available.
+- Start/Stop/Snapshot: public cmdlets route to the selected provider.
+
+Side‑by‑side note: if both VMware and Hyper‑V are present, enabling the Windows Optional Feature `Windows Hypervisor Platform` generally improves compatibility for VMware on Windows 11.
+
+Examples:
+
+```pwsh
+# Force Hyper-V
+$cfg = Get-RiDConfig
+$cfg.Hypervisor.Type = 'hyperv'
+Set-RiDConfig -Config $cfg -Confirm:$true
+
+# Create a Gen2 Hyper-V VM (defaults to "Default Switch")
+New-RiDVM -Name Demo -DestinationPath 'C:\\VMs' -MemoryMB 4096 -CpuCount 2 -DiskGB 64 -WhatIf
+
+# Start/Stop via provider routing
+Start-RiDVM -Name Demo
+Stop-RiDVM -Name Demo -Hard
+```
 
 ## Registered VMs
 

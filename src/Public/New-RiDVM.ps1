@@ -44,10 +44,60 @@ function New-RiDVM {
         [Parameter()] [int]$MemoryMB = 4096,
         [Parameter()] [int]$DiskGB = 60,
         [Parameter()] [string]$IsoPath,
+        [Parameter()] [string]$SwitchName,
         [Parameter()] [ValidateSet('auto','vmcli','vmrest','vmrun')][string]$Method = 'auto',
         [Parameter()] [string]$TemplateVmx,
         [Parameter()] [string]$TemplateSnapshot
     )
+
+    function _Get-DefaultIsoCandidates {
+        try {
+            $cfg = Get-RiDConfig
+            $dir = ''
+            if ($cfg['Iso'] -and $cfg['Iso']['DefaultDownloadDir']) { $dir = [string]$cfg['Iso']['DefaultDownloadDir'] }
+            if (-not $dir) { $dir = 'C:\\ISO' }
+            if ($dir -and (Test-Path -LiteralPath $dir)) {
+                return @(Get-ChildItem -LiteralPath $dir -Filter '*.iso' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+            }
+        } catch { }
+        return @()
+    }
+
+    function _PromptForIsoIfMissing {
+        param([string]$CurrentIso)
+        if ($CurrentIso) { return $CurrentIso }
+        $isos = _Get-DefaultIsoCandidates
+        if ($isos.Count -gt 0) {
+            Write-Host 'Available ISOs in default folder:' -ForegroundColor Green
+            $i = 1
+            foreach ($f in $isos) { Write-Host ("  {0}) {1}" -f $i, $f.FullName) -ForegroundColor DarkCyan; $i++ }
+            $sel = Read-Host 'Select an ISO by number or press Enter to skip'
+            if ($sel -match '^[0-9]+$') {
+                $idx = [int]$sel
+                if ($idx -ge 1 -and $idx -le $isos.Count) { return $isos[$idx-1].FullName }
+            }
+        }
+        $ask = Read-Host 'No ISO selected. Launch ISO helper? [Y/n]'
+        if ($ask -notmatch '^[Nn]') { return (Open-RiDIsoHelper) }
+        return $null
+    }
+
+    # Provider routing: if Hyper-V selected, use Hyper-V creation path
+    $cfg = Get-RiDConfig
+    $provider = Get-RiDProviderPreference -Config $cfg
+    if ($provider -eq 'hyperv') {
+        if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
+        $vhdPath = Join-Path -Path $DestinationPath -ChildPath ("{0}.vhdx" -f $Name)
+        $apply = $PSCmdlet.ShouldProcess($Name, 'Create Hyper-V VM')
+        New-RiDHvVM -Name $Name -MemoryGB ([int]([math]::Ceiling($MemoryMB/1024.0))) -CpuCount $CpuCount -Generation 2 -VhdPath $vhdPath -DiskGB $DiskGB -IsoPath $IsoPath -SwitchName $SwitchName -WhatIf:(!$apply) | Out-Null
+        if ($apply) {
+            try { Register-RiDVM -Name $Name -Provider hyperv | Out-Null } catch { Write-Verbose $_ }
+            Write-Host 'Hyper-V VM created. You can start it via Start-RiDVM -Name ...' -ForegroundColor Yellow
+        } else {
+            Write-Host 'Planned Hyper-V VM creation printed (dry-run).' -ForegroundColor Yellow
+        }
+        return
+    }
 
     # Determine available VMware command line tools
     $tools = Get-RiDVmTools
@@ -67,10 +117,7 @@ function New-RiDVM {
             $apply = $PSCmdlet.ShouldProcess($target, "Create new VM via vmcli")
             $vmx = New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -Apply:$apply
             if ($apply -and $vmx) {
-                $ans = Read-Host ("Register this VM as '{0}' for quick access? [Y/n]" -f $Name)
-                if ($ans -notmatch '^[Nn]') {
-                    try { Register-RiDVM -Name $Name -VmxPath $vmx -Confirm:$true } catch { Write-Error $_ }
-                }
+                try { Register-RiDVM -Name $Name -VmxPath $vmx | Out-Null } catch { Write-Error $_ }
                 Write-Host 'Next steps:' -ForegroundColor Green
                 Write-Host '  - Power on the VM and complete Windows OOBE.' -ForegroundColor DarkGray
                 Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray
@@ -90,7 +137,24 @@ function New-RiDVM {
                 $cfg = Get-RiDConfig
                 if ($cfg['Templates'] -and $cfg['Templates']['DefaultSnapshot']) { $TemplateSnapshot = $cfg['Templates']['DefaultSnapshot'] }
             }
-            if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) { $TemplateVmx = Read-Host 'Enter the path to the template VMX file' }
+            if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) {
+                Write-Host 'No template VMX found in config or input.' -ForegroundColor Yellow
+                $useVanilla = Read-Host 'Create a fresh VM without a template instead? [Y/n]'
+                if ($useVanilla -notmatch '^[Nn]') {
+                    if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
+                    $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
+                    $apply = $PSCmdlet.ShouldProcess($destVmx, 'Create vanilla VMware VM')
+                    $vmx = New-RiDVmVanilla -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -WhatIf:(!$apply)
+                    if ($apply -and $vmx) {
+                        try { Register-RiDVM -Name $Name -VmxPath $vmx | Out-Null } catch { Write-Error $_ }
+                        Write-Host 'Vanilla VM created and registered.' -ForegroundColor Green
+                    } else {
+                        Write-Host 'Planned vanilla VM creation (dry-run).' -ForegroundColor Yellow
+                    }
+                    return
+                }
+                $TemplateVmx = Read-Host 'Enter the path to the template VMX file'
+            }
             if (-not $TemplateSnapshot) { $TemplateSnapshot = Read-Host 'Enter the snapshot name in the template to clone from' }
 
             # Destination
@@ -105,10 +169,7 @@ function New-RiDVM {
                 'numvcpus' = $CpuCount
                 'memsize'  = $MemoryMB
             }
-            if (-not $IsoPath) {
-                $ask = Read-Host 'No ISO path provided. Launch ISO helper? [Y/n]'
-                if ($ask -notmatch '^[Nn]') { $IsoPath = Open-RiDIsoHelper }
-            }
+            if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
             if ($IsoPath) {
                 $vmxSettings['ide1:0.present']        = 'TRUE'
                 $vmxSettings['ide1:0.fileName']       = $IsoPath
@@ -129,10 +190,7 @@ function New-RiDVM {
             $isoText = if ($IsoPath) { ' + ISO' } else { '' }
             if ($apply) {
                 Write-Host ("VM clone completed and VMX updated with CPU/Mem{0}." -f $isoText) -ForegroundColor Yellow
-                $ans = Read-Host ("Register this VM as '{0}' for quick access? [Y/n]" -f $Name)
-                if ($ans -notmatch '^[Nn]') {
-                    try { Register-RiDVM -Name $Name -VmxPath $destVmx -Confirm:$true } catch { Write-Error $_ }
-                }
+                try { Register-RiDVM -Name $Name -VmxPath $destVmx | Out-Null } catch { Write-Error $_ }
                 Write-Host 'Next steps:' -ForegroundColor Green
                 Write-Host '  - Power on the VM and complete Windows OOBE.' -ForegroundColor DarkGray
                 Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray

@@ -45,14 +45,15 @@ Status cards also indicate ISO availability as “Available” when at least one
 
 Registered VMs (friendlier than typing .vmx paths):
 
-- `Register-RiDVM -Name <friendly> -VmxPath <path>`: Registers an existing VM for easy reference.
+- VMware: `Register-RiDVM -Name <friendly> -VmxPath <path>` registers by `.vmx` path.
+- Hyper‑V: `Register-RiDVM -Name <friendly> -Provider hyperv` registers by name only (no `.vmx`).
 - `Get-RiDVM` or `Get-RiDVM -Name <friendly>`: Lists or returns a registered VM.
 - `Unregister-RiDVM -Name <friendly>`: Removes a VM from the registry.
 - Most VM actions also accept `-Name` instead of `-VmxPath`:
   - `Start-RiDVM -Name <friendly> -WhatIf` or `-Confirm:$true`
   - `Stop-RiDVM -Name <friendly> [-Hard] -WhatIf` or `-Confirm:$true`
   - `Checkpoint-RiDVM -Name <friendly> -SnapshotName <name> -WhatIf` or `-Confirm:$true`
-  - `Repair-RiDSharedFolder -Name <friendly> -ShareName <name> -HostPath <path> -WhatIf` or `-Confirm:$true`
+  - `Repair-RiDSharedFolder -Name <friendly> -ShareName <name> -HostPath <path> -WhatIf` or `-Confirm:$true` (VMware only)
 
 Managing registered VMs in the menu:
 - From `Show-RiDMenu` on host, choose `3) Registered VMs`.
@@ -68,6 +69,25 @@ New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 
 # Execute with confirmation prompt:
 New-RiDVM -Name 'RiDVM1' -DestinationPath 'C:\VMs\RiDVM1' -CpuCount 2 -MemoryMB 4096 -Method vmrun -TemplateVmx 'C:\Templates\Win11Template\Win11Template.vmx' -TemplateSnapshot 'CleanOS' -Confirm:$true
 ```
+
+Hyper‑V creation example:
+
+```powershell
+# Force Hyper-V and create a Gen2 VM on configured switch
+$cfg = Get-RiDConfig; $cfg.Hypervisor.Type = 'hyperv'; Set-RiDConfig -Config $cfg
+New-RiDVM -Name 'HV-Demo' -DestinationPath 'C:\VMs\HV-Demo' -CpuCount 2 -MemoryMB 4096 -DiskGB 64 -SwitchName 'Default Switch' -Confirm:$true
+```
+
+Brand‑new VMware host without a template
+
+If you don’t have a template VMX yet and `vmcli` isn’t available, ridctl can create a fresh VM (minimal `.vmx` + VMDK) using VMware’s `vmware-vdiskmanager`:
+
+```powershell
+New-RiDVM -Name 'FreshVM' -DestinationPath 'C:\VMs\FreshVM' -CpuCount 2 -MemoryMB 4096 -DiskGB 60 -Method vmrun -Confirm:$true
+# When prompted: choose to create a fresh VM without a template
+```
+
+This path generates a minimal `.vmx` file, creates a growable VMDK, attaches your ISO if provided, and you can then start the VM normally.
 
 - If `-IsoPath` is omitted, the command can launch the ISO helper.
 - With `-WhatIf`, clone and VMX edits are printed (dry‑run). With `-Confirm`, you are prompted before applying.
@@ -150,13 +170,14 @@ From `Show-RiDMenu` on host, select `7) Options` to view/edit settings. You can 
 - Templates: `Templates.DefaultVmx`, `Templates.DefaultSnapshot`
 - Shared Folder: `Share.Name`, `Share.HostPath` (default `C:\RiDShare`)
 - VMware: `Vmware.vmrunPath`
+- Hypervisor: `Hypervisor.Type` (`vmware` | `hyperv` | `auto`)
 - VM Defaults: `VmDefaults.DestinationBase`, `VmDefaults.CpuCount`, `VmDefaults.MemoryMB`, `VmDefaults.DiskGB`, `VmDefaults.Method`
 
 Changes are saved via `Set-RiDConfig` and used on subsequent runs.
 
-## Sync Scripts
+## Sync Scripts (VMware & Hyper‑V)
 
-Synchronise files between your local working directory and the VMware shared folder.
+Synchronise files between your local working directory and the guest. On VMware, this targets the VMware Shared Folders host path. On Hyper‑V, use Guest Service Interface (GSI) for push (local -> guest) or prefer SMB/ESEM for two‑way sync.
 
 Defaults and config:
 - Shared folder host path defaults to `C:\RiDShare` (created on first run).
@@ -169,7 +190,7 @@ $cfg['Sync']['Excludes'] = @('**/*.log','tmp/*','.git/**')
 Set-RiDConfig $cfg
 ```
 
-Examples:
+Examples (VMware):
 - Dry-run, bidirectional (uses config excludes):
   - `Sync-RiDScripts -Bidirectional -DryRun`
 - Apply from local to share (with confirmation):
@@ -180,6 +201,12 @@ Examples:
 Notes:
 - v1 copies files only; no deletions.
 - Conflict resolution: in bidirectional mode, add `-ResolveConflicts` to prefer the newer side; otherwise conflicts are skipped.
+
+Examples (Hyper‑V):
+
+- Push local folder to guest via GSI (recursive):
+  - `Sync-RiDScripts -ToShare -LocalPath 'C:\\work' -Name 'Demo' -GuestPath 'C:\\Users\\Public\\work' -Confirm:$true`
+- Pull from guest has limitations with GSI; for two‑way sync, map an SMB share inside the guest or use Enhanced Session Mode.
 
 ## Tool Detection
 

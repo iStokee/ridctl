@@ -74,6 +74,12 @@ function Get-RiDAggregateStatus {
 
     $role = if ($isVm) { 'Guest' } else { 'Host' }
 
+    # Provider resolution
+    $cfg = $null
+    try { $cfg = Get-RiDConfig } catch { }
+    $providerPref = $null
+    try { $providerPref = Get-RiDProviderPreference -Config $cfg } catch { }
+
     return [pscustomobject]@{
         # Existing fields (preserve for tests/backcompat)
         IsVM                 = $isVm
@@ -91,5 +97,14 @@ function Get-RiDAggregateStatus {
         SyncStatus        = $syncStatus
         VmwareInstalled   = if ($workInfo) { [bool]$workInfo.Installed } else { $null }
         VmwareVersion     = if ($workInfo) { [string]$workInfo.Version } else { $null }
+
+        # Hyper-V / WHP surfacing from VirtSupport
+        HyperVPresent     = $virtInfo.HyperVPresent
+        HyperVModule      = $virtInfo.HyperVModule
+        WHPPresent        = $virtInfo.WindowsHypervisorPlatformPresent
+
+        # Provider
+        ProviderSelected  = if ($cfg -and $cfg['Hypervisor'] -and $cfg['Hypervisor']['Type']) { [string]$cfg['Hypervisor']['Type'] } else { '' }
+        ProviderResolved  = $providerPref
     }
 }

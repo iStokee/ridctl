@@ -28,6 +28,7 @@ function Get-RiDVmRegistry {
                 HostPath  = $e.HostPath
                 Notes     = $e.Notes
                 Created   = [string]$e.Created
+                Provider  = if ($e.PSObject.Properties.Name -contains 'Provider') { [string]$e.Provider } else { '' }
             }
         }
         return $out
@@ -64,6 +65,7 @@ function Save-RiDVmRegistry {
                 HostPath  = $e.HostPath
                 Notes     = $e.Notes
                 Created   = if ($e.Created) { [string]$e.Created } else { (Get-Date).ToString('s') }
+                Provider  = if ($e.PSObject.Properties.Name -contains 'Provider') { [string]$e.Provider } else { '' }
             }
         }
 
@@ -98,7 +100,9 @@ function Add-RiDVmRegistryEntry {
         [Parameter()] [switch]$Force
     )
     if (-not $Entry.Name) { throw 'Entry must include Name.' }
-    if (-not $Entry.VmxPath) { throw 'Entry must include VmxPath.' }
+    $prov = ''
+    try { if ($Entry.Provider) { $prov = [string]$Entry.Provider } } catch { }
+    if (-not $Entry.VmxPath -and $prov -ne 'hyperv') { throw 'Entry must include VmxPath.' }
 
     $existing = Find-RiDVmByName -Name $Entry.Name
     $list = @(Get-RiDVmRegistry)
@@ -112,6 +116,7 @@ function Add-RiDVmRegistryEntry {
         HostPath  = $Entry.HostPath
         Notes     = $Entry.Notes
         Created   = (Get-Date).ToString('s')
+        Provider  = $prov
     }
     $list += $obj
 
@@ -134,5 +139,17 @@ function Resolve-RiDVmxFromName {
     )
     $vm = Find-RiDVmByName -Name $Name | Select-Object -First 1
     if (-not $vm) { Write-Error ("Registered VM not found: {0}" -f $Name); return $null }
+    # For Hyper-V entries, VMX is not applicable; callers should branch by provider.
+    $prov = ''
+    try { if ($vm.PSObject.Properties.Name -contains 'Provider') { $prov = [string]$vm.Provider } } catch { }
+    if ($prov -eq 'hyperv') { return $null }
     return ($vm.VmxPath -as [string])
+}
+
+function Get-RiDProviderForName {
+    [CmdletBinding()] param([Parameter(Mandatory=$true)][string]$Name)
+    $vm = Find-RiDVmByName -Name $Name | Select-Object -First 1
+    if (-not $vm) { return $null }
+    try { if ($vm.PSObject.Properties.Name -contains 'Provider') { return [string]$vm.Provider } } catch { }
+    return $null
 }

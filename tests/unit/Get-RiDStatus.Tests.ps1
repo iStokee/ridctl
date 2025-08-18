@@ -12,3 +12,21 @@ Describe 'Get-RiDStatus' {
         $status | Should -HaveProperty 'SyncNeeded'
     }
 }
+Import-Module $PSScriptRoot/../../src -Force
+
+Describe 'Aggregate status fields' {
+  It 'bubbles Hyper-V and WSL fields' {
+    Mock Get-RiDHostGuestInfo { $false }
+    Mock Get-RiDVirtSupport { [pscustomobject]@{
+      VTEnabled=$true; HyperVPresent=$true; HyperVModule=$true;
+      WindowsHypervisorPlatformPresent=$false; WslPresent=$true;
+      HypervisorLaunchTypeActive=$false; MemoryIntegrityEnabled=$false
+    } }
+    Mock Get-RiDWorkstationInfo { [pscustomobject]@{ Installed=$true; Version='17.5.0' } }
+    $s = Get-RiDStatus
+    $s.HyperVPresent | Should -BeTrue
+    $s.HyperVModule  | Should -BeTrue
+    $s.WHPPresent    | Should -BeFalse
+    $s | Get-Member -Name VmwareInstalled | Should -Not -BeNullOrEmpty
+  }
+}

@@ -51,6 +51,9 @@ function Sync-RiDScripts {
 
         [string]$LocalPath,
         [string]$ShareHostPath,
+        # Hyper-V provider parameters
+        [string]$Name,
+        [string]$GuestPath,
         [string[]]$Excludes,
         [switch]$DryRun,
         [string]$LogPath,
@@ -75,8 +78,55 @@ function Sync-RiDScripts {
     }
 
     if (-not (Test-Path -LiteralPath $LocalPath)) { Write-Error "LocalPath not found: $LocalPath"; return }
-    if (-not (Test-Path -LiteralPath $ShareHostPath)) { Write-Error "ShareHostPath not found: $ShareHostPath"; return }
 
+    # Determine provider
+    $provider = Get-RiDProviderPreference -Config $cfg
+
+    if ($provider -eq 'hyperv') {
+        if (-not $Name -or -not $GuestPath) {
+            Write-Warning 'For Hyper-V provider, please specify -Name (VM) and -GuestPath (destination in guest).'
+            return
+        }
+        $target = "$mode sync (Hyper-V) between `"$LocalPath`" and guest:`"$GuestPath`" on VM:`"$Name`""
+        $apply = $PSCmdlet.ShouldProcess($target, 'Apply Hyper-V GSI copy')
+        # For now, support ToShare only (push to guest)
+        if ($mode -eq 'Bidirectional') {
+            Write-Warning 'Bidirectional sync is not supported with Hyper-V GSI. Use -ToShare or -FromShare with SMB/ESEM.'
+            return
+        }
+        if ($mode -eq 'FromShare') {
+            Write-Warning 'Pulling from guest via GSI is limited; consider SMB/ESEM. Skipping.'
+            return
+        }
+        # Push local -> guest recursively
+        $root = Resolve-Path -LiteralPath $LocalPath | Select-Object -ExpandPath
+        $files = Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue
+        # Apply excludes
+        $effectiveExcludes = $Excludes
+        if (-not $effectiveExcludes -or $effectiveExcludes.Count -eq 0) {
+            try { $effectiveExcludes = $cfg['Sync']['Excludes'] } catch { $effectiveExcludes = @() }
+        }
+        if ($effectiveExcludes -and $effectiveExcludes.Count -gt 0) {
+            $files = $files | Where-Object {
+                $rel = $_.FullName.Substring($root.Length).TrimStart('\\','/')
+                -not ($effectiveExcludes | Where-Object { $rel -like $_ } )
+            }
+        }
+        $copied = 0; $skipped = 0
+        foreach ($f in $files) {
+            $rel = $f.FullName.Substring($root.Length).TrimStart('\\','/')
+            $dest = (Join-Path -Path $GuestPath -ChildPath $rel)
+            if ($apply -and -not $DryRun) {
+                try { Copy-RiDHvToGuest -Name $Name -Source $f.FullName -Destination $dest; $copied++ } catch { Write-Verbose $_; $skipped++ }
+            } else {
+                Write-Host ("[DryRun] Copy {0} -> {1}" -f $f.FullName, $dest) -ForegroundColor DarkCyan; $skipped++
+            }
+        }
+        Write-Host ("{0}: {1} file(s) processed (copied={2}, skipped={3})" -f (if ($apply -and -not $DryRun) { 'Applied' } else { 'Planned' }), ($files | Measure-Object).Count, $copied, $skipped)
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $ShareHostPath)) { Write-Error "ShareHostPath not found: $ShareHostPath"; return }
     $target = "$mode sync between `"$LocalPath`" and `"$ShareHostPath`""
     $apply = $PSCmdlet.ShouldProcess($target, 'Apply file synchronization')
 
