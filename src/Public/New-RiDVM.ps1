@@ -89,7 +89,7 @@ function New-RiDVM {
         if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
         $vhdPath = Join-Path -Path $DestinationPath -ChildPath ("{0}.vhdx" -f $Name)
         $apply = $PSCmdlet.ShouldProcess($Name, 'Create Hyper-V VM')
-        New-RiDHvVM -Name $Name -MemoryGB ([int]([math]::Ceiling($MemoryMB/1024.0))) -CpuCount $CpuCount -Generation 2 -VhdPath $vhdPath -DiskGB $DiskGB -IsoPath $IsoPath -SwitchName $SwitchName -WhatIf:(!$apply) | Out-Null
+        New-RiDHvVM -Name $Name -MemoryGB ([int]([math]::Ceiling($MemoryMB/1024.0))) -CpuCount $CpuCount -Generation 2 -VhdPath $vhdPath -DiskGB $DiskGB -IsoPath $IsoPath -SwitchName $SwitchName -Path $DestinationPath -WhatIf:(!$apply) | Out-Null
         if ($apply) {
             try { Register-RiDVM -Name $Name -Provider hyperv | Out-Null } catch { Write-Verbose $_ }
             Write-Host 'Hyper-V VM created. You can start it via Start-RiDVM -Name ...' -ForegroundColor Yellow

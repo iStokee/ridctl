@@ -67,6 +67,7 @@
 ## M9 — Utilities Polish
 - [~] Ensure `Start/Stop/Checkpoint-RiDVM` use `ShouldProcess` (`-WhatIf/-Confirm`) and show clear errors; add smoke tests.
   - Cmdlets now use `ShouldProcess` and validate VMX with helpful guidance; smoke tests still pending.
+  - [x] Fixed Hyper-V stop logic to use `-Shutdown`/`-TurnOff` appropriately.
 - **How to test:** Use `-WhatIf` to preview and `-Confirm` to run for a known VM; verify outcomes and messages.
 
 ## M10 — Menu Wiring for Full Flows

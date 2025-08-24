@@ -31,7 +31,13 @@ Describe 'Routing to Hyper-V' {
     Mock Get-RiDProviderPreference { 'hyperv' }
     Mock New-RiDHvVM { }
     { New-RiDVM -Name 'Demo' -DestinationPath 'C:\\VMs\\Demo' -WhatIf } | Should -Not -Throw
-    Assert-MockCalled New-RiDHvVM -Times 1
+    Assert-MockCalled New-RiDHvVM -Times 1 -ParameterFilter { $Path -eq 'C:\\VMs\\Demo' -and $VhdPath -eq 'C:\\VMs\\Demo\\Demo.vhdx' }
+  }
+  It 'Stop-RiDVM routes to Stop-RiDHvVM when provider=hyperv' {
+    Mock Get-RiDProviderPreference { 'hyperv' }
+    Mock Stop-RiDHvVM { }
+    { Stop-RiDVM -Name 'Demo' -WhatIf } | Should -Not -Throw
+    Assert-MockCalled Stop-RiDHvVM -Times 1 -Exactly -ParameterFilter { $Name -eq 'Demo' -and -not $Hard }
   }
 }
 
@@ -57,5 +63,18 @@ Describe 'Get-RiDVM LiteralPath' {
     Mock Test-Path { $true } -ParameterFilter { $LiteralPath -ne $null }
     $v = Get-RiDVM | Select-Object -First 1
     $v.Exists | Should -BeTrue
+  }
+}
+
+Describe 'Stop-RiDHvVM switch behaviour' {
+  It 'uses Shutdown for soft stops' {
+    Mock Stop-VM { }
+    { Stop-RiDHvVM -Name 'Demo' -WhatIf } | Should -Not -Throw
+    Assert-MockCalled Stop-VM -Times 1 -ParameterFilter { $Name -eq 'Demo' -and $Shutdown }
+  }
+  It 'uses TurnOff for hard stops' {
+    Mock Stop-VM { }
+    { Stop-RiDHvVM -Name 'Demo' -Hard -WhatIf } | Should -Not -Throw
+    Assert-MockCalled Stop-VM -Times 1 -ParameterFilter { $Name -eq 'Demo' -and $TurnOff }
   }
 }
