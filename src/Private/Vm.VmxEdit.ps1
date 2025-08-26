@@ -9,8 +9,8 @@ function Set-RiDVmxSettings {
         [Parameter(Mandatory=$true)] [hashtable]$Settings,
         [Parameter()] [switch]$Apply
     )
-    if (-not (Test-Path -Path $VmxPath)) { Write-Error "VMX not found: $VmxPath"; return 1 }
-    $lines = Get-Content -Path $VmxPath -ErrorAction Stop
+    if (-not (Test-Path -LiteralPath $VmxPath)) { Write-Error "VMX not found: $VmxPath"; return 1 }
+    $lines = Get-Content -LiteralPath $VmxPath -ErrorAction Stop
     $original = @($lines)
     foreach ($key in $Settings.Keys) {
         $value = $Settings[$key]
@@ -29,7 +29,7 @@ function Set-RiDVmxSettings {
         }
         return 0
     }
-    Set-Content -Path $VmxPath -Value $lines -Encoding ASCII
+    Set-Content -LiteralPath $VmxPath -Value $lines -Encoding ASCII
     return 0
 }
 
@@ -41,7 +41,7 @@ function Test-RiDVmxPath {
     if (-not $VmxPath) { Write-Error 'Please provide a path to a .vmx file (e.g., C:\VMs\MyVM\MyVM.vmx).'; return $false }
     $ext = [System.IO.Path]::GetExtension($VmxPath)
     if (($ext -as [string]).ToLowerInvariant() -ne '.vmx') { Write-Error 'Path must point to a .vmx file (e.g., C:\VMs\MyVM\MyVM.vmx).'; return $false }
-    if ($RequireExists -and -not (Test-Path -Path $VmxPath)) { Write-Error ("VMX not found at: {0}" -f $VmxPath); return $false }
+    if ($RequireExists -and -not (Test-Path -LiteralPath $VmxPath)) { Write-Error ("VMX not found at: {0}" -f $VmxPath); return $false }
     return $true
 }
 
