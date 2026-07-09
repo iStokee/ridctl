@@ -1,3 +1,8 @@
+<#
+    PARKED: Hyper-V support is not currently wired into any public cmdlet.
+    ridctl operates VMware-only for now; these helpers are kept for
+    potential re-evaluation later.
+#>
 function Enable-RiDHvGuestService { [CmdletBinding()] param([Parameter(Mandatory)][string]$Name)
     try {
         $svc = Get-VMIntegrationService -VMName $Name -Name 'Guest Service Interface' -ErrorAction SilentlyContinue

@@ -1,6 +1,10 @@
-Import-Module (Join-Path -Path $PSScriptRoot -ChildPath '..\..\src')
+BeforeAll {
+    Import-Module (Join-Path -Path $PSScriptRoot -ChildPath '..\..\src\ridctl.psd1') -Force
+}
 
 Describe 'Get-RiDStatus IsoAvailable' {
+    AfterEach { Remove-Item Env:RIDCTL_CONFIG -ErrorAction SilentlyContinue }
+
     It 'returns IsoAvailable true when an ISO exists in configured dir' {
         $isoDir = Join-Path $TestDrive 'isos'
         New-Item -ItemType Directory -Path $isoDir | Out-Null
@@ -18,4 +22,3 @@ Describe 'Get-RiDStatus IsoAvailable' {
         $status.IsoAvailable | Should -BeTrue
     }
 }
-

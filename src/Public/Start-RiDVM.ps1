@@ -4,9 +4,7 @@ function Start-RiDVM {
         Powers on a virtual machine.
 
     .DESCRIPTION
-        Thin wrapper over VMware vmrun, vmcli or vmrest to start a VM.
-        Currently implemented as a stub which warns about missing
-        functionality.
+        Thin wrapper over VMware vmrun to start a VM.
 
     .PARAMETER VmxPath
         Path to the .vmx file of the VM to power on.
@@ -15,18 +13,6 @@ function Start-RiDVM {
         [Parameter(ParameterSetName='ByPath', Mandatory=$true)] [string]$VmxPath,
         [Parameter(ParameterSetName='ByName', Mandatory=$true)] [string]$Name
     )
-    # Resolve provider preference
-    $cfg = Get-RiDConfig
-    $provider = Get-RiDProviderPreference -Config $cfg
-    if ($provider -eq 'hyperv') {
-        if ($PSCmdlet.ParameterSetName -ne 'ByName') {
-            throw 'When using Hyper-V provider, please specify -Name to identify the VM.'
-        }
-        if ($PSCmdlet.ShouldProcess($Name, 'Start Hyper-V VM')) {
-            return (Start-RiDHvVM -Name $Name)
-        }
-        return
-    }
     if ($PSCmdlet.ParameterSetName -eq 'ByName') {
         $resolved = Resolve-RiDVmxFromName -Name $Name
         if (-not $resolved) { return }

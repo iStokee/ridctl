@@ -1,3 +1,8 @@
+<#
+    PARKED: Hyper-V support is not currently wired into any public cmdlet.
+    ridctl operates VMware-only for now; these helpers are kept for
+    potential re-evaluation later.
+#>
 function New-RiDHvVM {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param(

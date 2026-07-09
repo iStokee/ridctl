@@ -113,9 +113,9 @@ function Initialize-RiDGuest {
 
     # Extract with 7z
     Write-Host ("Extracting RiD to {0}..." -f $Destination) -ForegroundColor Cyan
-    $args = @('x', '"{0}"' -f $tempFile, '-o"{0}"' -f $Destination, '-y')
+    $sevenZipArgs = @('x', ('"{0}"' -f $tempFile), ('-o"{0}"' -f $Destination), '-y')
     try {
-        $exit = _Invoke-Process -FilePath $sevenZip -Arguments ($args -join ' ')
+        $exit = _Invoke-Process -FilePath $sevenZip -Arguments ($sevenZipArgs -join ' ')
         if ($exit -ne 0) { Write-Error ("7z exited with code {0}" -f $exit); return $exit }
     } catch {
         Write-Error ("Failed to extract RiD: {0}" -f $_)

@@ -42,10 +42,10 @@
 - [x] Apply VMX edits via `Set-RiDVmxSettings` (CPU, Memory, ISO attach, guest OS type).
 - **How to test:** With a valid template snapshot, run `New-RiDVM ... -WhatIf` to preview then `-Confirm:$true` to apply; confirm new VM folder, edited VMX, and `vmrun start` boots.
 
-## M5 — VM Creation via vmcli (Fresh Create)
-- [x] Implement `Invoke-RiDVmCliCommand` wrapper and `New-RiDVmCliVM` (supports `--iso` attach).
-- [x] `New-RiDVM -Method auto` chooses vmcli when present; else falls back to vmrun clone.
-- **How to test:** On Workstation 17+ with `vmcli`, run `New-RiDVM ... -WhatIf` to preview then `-Confirm:$true` to apply; confirm a bootable fresh VM is created.
+## M5 — VM Creation (Fresh Create)
+- [x] ~~vmcli wrapper~~ Dropped 2026-07-09: the vmcli scaffold used invented syntax and was removed. Fresh creation is `New-RiDVmVanilla` — Windows 11-ready VMX (EFI + Secure Boot + software vTPM + NVMe) with VMDK via vmware-vdiskmanager.
+- [x] `New-RiDVM -Method auto` picks clone when a template is configured, else vanilla; `-Method clone|vanilla` forces a path.
+- **How to test:** `New-RiDVM ... -WhatIf` to preview then `-Confirm:$true`; confirm the VM boots the installer ISO.
 
 ## M6 — Shared Folder Configure & Verify (Host + Guest)
 - [x] Finalize `Enable-RiDSharedFolder`/`Repair-RiDSharedFolder` (quotes, logging, `-Apply` path).
@@ -81,9 +81,19 @@
 - **How to test:** Delete config; run; set defaults; re‑run and confirm auto‑population.
 
 ## M12 — Tests & CI
-- [ ] Add Pester tests for: ISO helper (returns file), VMX edits (idempotent), vmrun/vmcli command lines (mocked), virtualization conflict mapping, sync dry‑run summary.
-- [ ] Add ScriptAnalyzer step; fix violations.
-- **How to test:** `Invoke-Pester` passes; CI workflow on Windows runner is green.
+- [x] Test suite repaired 2026-07-09: tests previously imported a nonexistent module path (`../../src` with no src.psd1) and had never passed. Now Pester 5+ style (`Import-Module src/ridctl.psd1`, `InModuleScope` for private functions); 26 tests passing, covering sync compare/plan/apply, New-RiDVM routing + Win11 VMX content, provider preference, registry, detection, guest init, and debloat.
+- [~] ScriptAnalyzer step exists in CI; baseline style warnings (Write-Host by design, empty catches) not yet triaged.
+- **How to test:** `Invoke-Pester -Path tests/unit` passes; CI workflow on Windows runner is green.
+
+## M14 — VMware-only Consolidation + Guest Debloat (2026-07-09)
+- [x] Parked Hyper-V: helpers kept under `Private/Hv.*` with a PARKED banner; no public cmdlet routes to them; `Get-RiDProviderPreference` always returns `vmware` (warns if config says `hyperv`).
+- [x] Removed vmcli/vmrest scaffolds; `Get-RiDVmTools` detects vmrun only (config → PATH → registry → default dirs).
+- [x] Fixed config loading: `_ConvertToHashtable` returned empty hashtables for every string leaf, so saved config was silently ignored; also normalizes legacy doubled-backslash drive paths.
+- [x] Fixed sync engine on PowerShell 5.1 (`[IO.Path]::GetRelativePath` is .NET Core-only; replaced with prefix stripping).
+- [x] Fixed 7-Zip extraction argument bug in `Initialize-RiDGuest` (format-operator precedence dropped `-o<dest> -y`).
+- [x] Added `Optimize-RiDGuest`: Store app removal (installed + provisioned), Win11Debloat-inspired registry tweaks (consumer features, telemetry, Bing search, Copilot/Recall, widgets, Game DVR, fast startup), cache/temp cleanup; guest menu option 4.
+- [x] TUI polish: aligned status cards with badges, Clone Template card, module version in header, menu hints.
+- **How to test:** `Invoke-Pester -Path tests/unit`; `Show-RiDMenu` on host shows new cards; `Optimize-RiDGuest -WhatIf` in a guest prints the plan.
 
 ## M13 — Docs Replacing the Two Guides
 - [ ] Expand `docs/USAGE.md` with E2E flows: “from zero to running VM,” “repair share,” “guest configure,” “sync both ways.”

@@ -30,11 +30,8 @@ function Get-RiDChecklistStatus {
         try { $wk = Get-RiDWorkstationInfo } catch {}
         $tools = Get-RiDVmTools
         $vmrunPath = ''
-        $vmcliPath = ''
         try { if ($tools -and $tools.VmrunPath) { $vmrunPath = [string]$tools.VmrunPath } } catch { }
-        try { if ($tools -and $tools.VmCliPath)  { $vmcliPath = [string]$tools.VmCliPath } } catch { }
         $res['vmrun path'] = $vmrunPath
-        $res['vmcli path'] = $vmcliPath
         $res['Provider (config)'] = if ($agg.ProviderSelected) { $agg.ProviderSelected } else { 'vmware' }
         $res['Provider (resolved)'] = if ($agg.ProviderResolved) { $agg.ProviderResolved } else { '' }
 

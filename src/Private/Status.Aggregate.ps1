@@ -80,6 +80,15 @@ function Get-RiDAggregateStatus {
     $providerPref = $null
     try { $providerPref = Get-RiDProviderPreference -Config $cfg } catch { }
 
+    # Clone template readiness (drives the preferred New-RiDVM path)
+    $tplVmx = ''
+    $tplSnap = ''
+    try {
+        if ($cfg['Templates'] -and $cfg['Templates']['DefaultVmx']) { $tplVmx = [string]$cfg['Templates']['DefaultVmx'] }
+        if ($cfg['Templates'] -and $cfg['Templates']['DefaultSnapshot']) { $tplSnap = [string]$cfg['Templates']['DefaultSnapshot'] }
+    } catch { }
+    $tplReady = [bool]($tplVmx -and $tplSnap -and (Test-Path -LiteralPath $tplVmx -ErrorAction SilentlyContinue))
+
     return [pscustomobject]@{
         # Existing fields (preserve for tests/backcompat)
         IsVM                 = $isVm
@@ -106,5 +115,10 @@ function Get-RiDAggregateStatus {
         # Provider
         ProviderSelected  = if ($cfg -and $cfg['Hypervisor'] -and $cfg['Hypervisor']['Type']) { [string]$cfg['Hypervisor']['Type'] } else { '' }
         ProviderResolved  = $providerPref
+
+        # Clone template
+        TemplateVmx       = $tplVmx
+        TemplateSnapshot  = $tplSnap
+        TemplateReady     = $tplReady
     }
 }

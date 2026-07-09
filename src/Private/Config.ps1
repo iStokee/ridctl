@@ -86,7 +86,7 @@ function Set-RiDConfig {
 function Get-RiDDefaultConfig {
     [CmdletBinding()] param()
     # Default ISO download directory (consistent across app)
-    $downloads = 'C:\\ISO'
+    $downloads = 'C:\ISO'
     $def = @{}
     $def['Vms'] = @()
     $def['Iso'] = @{
@@ -102,7 +102,7 @@ function Get-RiDDefaultConfig {
     }
     $def['Share'] = @{
         'Name'     = 'rid'
-        'HostPath' = 'C:\\RiDShare'
+        'HostPath' = 'C:\RiDShare'
     }
     $def['Sync'] = @{
         'DefaultLocalPath' = ''
@@ -119,7 +119,7 @@ function Get-RiDDefaultConfig {
     }
     # Defaults for creating new VMs via the menu
     $def['VmDefaults'] = @{
-        'DestinationBase' = 'C:\\VMs'
+        'DestinationBase' = 'C:\VMs'
         'CpuCount'        = '2'
         'MemoryMB'        = '4096'
         'DiskGB'          = '60'
@@ -260,11 +260,15 @@ function _Normalize-RiDConfig {
 
     function Coerce([object]$val) {
         if ($null -eq $val) { return '' }
-        if ($val -is [string]) { return $val }
         if ($val -is [System.Collections.IDictionary] -or ($val -is [System.Collections.IEnumerable] -and -not ($val -is [string]))) {
             return ''  # bad type for a leaf; reset to empty string
         }
-        return [string]$val
+        $s = [string]$val
+        # Older versions saved drive paths with doubled backslashes
+        # (e.g. C:\\ISO). Collapse them for drive-letter paths only, so
+        # UNC prefixes (\\server\share) are never touched.
+        if ($s -match '^[A-Za-z]:') { $s = $s -replace '\\{2,}', '\' }
+        return $s
     }
 
     $cfg = $Config.Clone()
@@ -323,33 +327,35 @@ function _Normalize-RiDConfig {
 }
 
 function Get-RiDProviderPreference {
+    <#
+        ridctl is VMware-only for now. Hyper-V support is parked (code kept
+        under Private/Hv.* for potential re-evaluation) and is not routed to
+        by any public cmdlet. A config requesting hyperv gets a warning and
+        falls back to vmware.
+    #>
     [CmdletBinding()] param(
         [Parameter()][hashtable]$Config
     )
     if (-not $Config) { $Config = Get-RiDConfig }
     $type = $null
     try { if ($Config['Hypervisor'] -and $Config['Hypervisor']['Type']) { $type = [string]$Config['Hypervisor']['Type'] } } catch { }
-    if ($type -and $type.ToLowerInvariant() -ne 'auto') { return $type.ToLowerInvariant() }
-    # Auto: prefer VMware when detected; else Hyper-V; else $null
-    $virt = $null
-    try { $virt = Get-RiDVirtSupport } catch { }
-    # Prefer VMware via either VirtSupport.VmwarePresent (if provided) or Workstation info
-    try {
-        if ($virt -and $virt.PSObject.Properties.Name -contains 'VmwarePresent' -and $virt.VmwarePresent) { return 'vmware' }
-    } catch { }
-    try {
-        $wk = Get-RiDWorkstationInfo
-        if ($wk -and $wk.Installed) { return 'vmware' }
-    } catch { }
-    try {
-        if ($virt -and $virt.HyperVPresent) { return 'hyperv' }
-    } catch { }
-    return $null
+    if ($type -and $type.ToLowerInvariant() -eq 'hyperv') {
+        Write-Warning 'Hyper-V support is currently parked; ridctl operates VMware-only. Falling back to vmware.'
+    }
+    return 'vmware'
 }
 
 
 function _ConvertToHashtable($obj) {
     if ($null -eq $obj) { return @{} }
+    if ($obj -is [string]) {
+        # Older versions saved drive paths with doubled backslashes
+        # (e.g. C:\\ISO); collapse for drive-letter paths only so UNC
+        # prefixes (\\server\share) are never touched.
+        if ($obj -match '^[A-Za-z]:') { return ($obj -replace '\\{2,}', '\') }
+        return $obj
+    }
+    if ($obj -is [System.ValueType]) { return $obj }
     if ($obj -is [hashtable]) { return $obj }
     if ($obj -is [System.Collections.IDictionary]) { return @{} + $obj }
     if ($obj -is [System.Collections.IEnumerable] -and -not ($obj -is [string])) {

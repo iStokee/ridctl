@@ -8,8 +8,15 @@ function Write-RiDHeader {
     [CmdletBinding()] param(
         [Parameter()] [string]$Title = 'RiD Control'
     )
-    Write-Host $Title -ForegroundColor Cyan
-    Write-Host ('=' * $Title.Length) -ForegroundColor Cyan
+    $version = ''
+    try {
+        $m = $ExecutionContext.SessionState.Module
+        if ($m -and $m.Version) { $version = (' v{0}' -f $m.Version) }
+    } catch { }
+    $text = $Title + $version
+    Write-Host ''
+    Write-Host ("  {0}" -f $text) -ForegroundColor Cyan
+    Write-Host ("  {0}" -f ('=' * $text.Length)) -ForegroundColor DarkCyan
 }
 
 function _Get-RiDLightColorForState {
@@ -36,10 +43,35 @@ function _Format-RiDStateText {
     return [string]$State
 }
 
+function _Write-RiDCard {
+    <#
+        Renders one aligned status line: a colored badge, a fixed-width
+        label, and the value text. Optional Detail prints dimmed after
+        the value.
+    #>
+    param(
+        [Parameter(Mandatory=$true)] [string]$Label,
+        [Parameter(Mandatory=$true)] [string]$Text,
+        [Parameter()] [string]$Color = 'White',
+        [Parameter()] [string]$Detail
+    )
+    $badge = switch ($Color) {
+        'Green'  { '[ OK ]' }
+        'Red'    { '[FAIL]' }
+        'Yellow' { '[WARN]' }
+        default  { '[ -- ]' }
+    }
+    Write-Host ('  {0} ' -f $badge) -ForegroundColor $Color -NoNewline
+    Write-Host ('{0,-16}' -f $Label) -ForegroundColor Gray -NoNewline
+    Write-Host $Text -ForegroundColor $Color -NoNewline
+    if ($Detail) { Write-Host ('  {0}' -f $Detail) -ForegroundColor DarkGray -NoNewline }
+    Write-Host ''
+}
+
 function Write-RiDStatusCards {
     <#
     .SYNOPSIS
-        Renders simple colorized status lines for key RiD environment facets.
+        Renders aligned, colorized status cards for key RiD environment facets.
     .PARAMETER Status
         The object returned by Get-RiDStatus / Get-RiDAggregateStatus.
     #>
@@ -47,63 +79,52 @@ function Write-RiDStatusCards {
         [Parameter(Mandatory=$true)] [psobject]$Status
     )
     $role = if ($Status.IsVM) { 'Guest' } else { 'Host' }
-    Write-Host ("Role: {0}" -f $role) -ForegroundColor White
+    Write-Host ("  Environment: {0}" -f $role) -ForegroundColor White
+    Write-Host ''
 
     if (-not $Status.IsVM) {
-        $virtText = 'Unknown'
-        $virtColor = 'Yellow'
+        $virtText = 'Unknown'; $virtColor = 'Yellow'; $virtDetail = $null
         if ($Status.VirtualizationOk -eq $true) {
             $virtText = 'Ready'; $virtColor = 'Green'
         } elseif ($Status.VTReady -eq $true -and $Status.VirtualizationConflicted) {
             $virtText = 'Conflicted'; $virtColor = 'Yellow'
+            if ($Status.VirtualizationConflicts -and $Status.VirtualizationConflicts.Count -gt 0) {
+                $virtDetail = ($Status.VirtualizationConflicts -join ', ')
+            }
         } elseif ($Status.VTReady -eq $false) {
-            $virtText = 'Not Ready'; $virtColor = 'Red'
+            $virtText = 'Not Ready'; $virtColor = 'Red'; $virtDetail = 'Enable VT-x/AMD-V in BIOS/UEFI'
         }
-        Write-Host ("Virtualization: {0}" -f $virtText) -ForegroundColor $virtColor
-        if ($Status.VirtualizationConflicted -eq $true -and $Status.VirtualizationConflicts -and $Status.VirtualizationConflicts.Count -gt 0) {
-            $conf = ($Status.VirtualizationConflicts -join ', ')
-            Write-Host ("Conflicts: {0}" -f $conf) -ForegroundColor Yellow
-        }
-        # Provider cards: VMware + Hyper-V
+        _Write-RiDCard -Label 'Virtualization' -Text $virtText -Color $virtColor -Detail $virtDetail
+
         $vmwText = if ($Status.VmwareInstalled -eq $true) { 'Installed' } elseif ($Status.VmwareInstalled -eq $false) { 'Missing' } else { 'Unknown' }
         $vmwColor = if ($Status.VmwareInstalled -eq $true) { 'Green' } elseif ($Status.VmwareInstalled -eq $false) { 'Red' } else { 'Yellow' }
-        $vmwLabel = if ($Status.VmwareVersion) { "VMware Workstation: {0} (v{1})" -f $vmwText, $Status.VmwareVersion } else { "VMware Workstation: {0}" -f $vmwText }
-        Write-Host $vmwLabel -ForegroundColor $vmwColor
+        $vmwDetail = if ($Status.VmwareVersion) { ('v{0}' -f $Status.VmwareVersion) } else { $null }
+        _Write-RiDCard -Label 'VMware' -Text $vmwText -Color $vmwColor -Detail $vmwDetail
 
-        $hvText = if ($Status.HyperVPresent -eq $true) { 'Present' } elseif ($Status.HyperVPresent -eq $false) { 'Not Present' } else { 'Unknown' }
-        $hvColor = if ($Status.HyperVPresent -eq $true) { 'Green' } elseif ($Status.HyperVPresent -eq $false) { 'Yellow' } else { 'Yellow' }
-        $modText = if ($Status.HyperVModule -eq $true) { 'OK' } elseif ($Status.HyperVModule -eq $false) { 'Missing' } else { 'Unknown' }
-        Write-Host ("Hyper-V: {0} (Module: {1})" -f $hvText, $modText) -ForegroundColor $hvColor
-
-        # Provider display: coerce to a clean string
-        $provTxt = ''
-        try {
-            $provRes = $Status.ProviderResolved
-            $provSel = $Status.ProviderSelected
-            if ($provRes -is [string] -and $provRes) { $provTxt = $provRes }
-            elseif ($provSel -is [string] -and $provSel) { $provTxt = $provSel }
-            elseif ($provSel -is [psobject] -and ($provSel.PSObject.Properties.Name -contains 'Type')) { $provTxt = [string]$provSel.Type }
-            elseif ($provSel -is [System.Collections.IDictionary] -and $provSel.Contains('Type')) { $provTxt = [string]$provSel['Type'] }
-        } catch { }
-        if ($provTxt -and $provTxt -ne 'System.Collections.Hashtable') {
-            Write-Host ("Provider: {0}" -f $provTxt) -ForegroundColor White
-        }
-        if ($Status.ProviderResolved -eq 'vmware' -and $Status.HyperVPresent -and -not $Status.WHPPresent) {
-            Write-Host "Advisory: Enable 'Windows Hypervisor Platform' for best side-by-side compatibility." -ForegroundColor Yellow
+        # Clone template: green when ready, yellow hint otherwise (vanilla
+        # creation still works without one).
+        if ($Status.PSObject.Properties.Name -contains 'TemplateReady') {
+            if ($Status.TemplateReady) {
+                $snap = if ($Status.TemplateSnapshot) { ('snapshot: {0}' -f $Status.TemplateSnapshot) } else { $null }
+                _Write-RiDCard -Label 'Clone Template' -Text 'Configured' -Color 'Green' -Detail $snap
+            } else {
+                _Write-RiDCard -Label 'Clone Template' -Text 'Not Set' -Color 'Yellow' -Detail 'New VMs use fresh install; set in Options > Templates'
+            }
         }
     }
 
     $isoText  = _Format-RiDStateText -State $Status.IsoAvailable -TrueText 'Available' -FalseText 'Missing'
     $isoColor = _Get-RiDLightColorForState -State $Status.IsoAvailable
-    Write-Host ("ISO: {0}" -f $isoText) -ForegroundColor $isoColor
+    _Write-RiDCard -Label 'ISO' -Text $isoText -Color $isoColor
 
     $shareText  = _Format-RiDStateText -State $Status.SharedFolderOk -TrueText 'OK' -FalseText 'Needs Repair'
     $shareColor = _Get-RiDLightColorForState -State $Status.SharedFolderOk
-    Write-Host ("Shared Folder: {0}" -f $shareText) -ForegroundColor $shareColor
+    _Write-RiDCard -Label 'Shared Folder' -Text $shareText -Color $shareColor
 
-    $syncText  = _Format-RiDStateText -State $Status.SyncStatus -TrueText 'OK' -FalseText 'Issues'
-    $syncColor = _Get-RiDLightColorForState -State $Status.SyncStatus
-    Write-Host ("Sync: {0}" -f $syncText) -ForegroundColor $syncColor
+    if (-not $Status.IsVM -and $Status.HyperVPresent -and -not $Status.WHPPresent) {
+        Write-Host ''
+        Write-Host "  Tip: enable 'Windows Hypervisor Platform' for best VMware/Hyper-V side-by-side compatibility." -ForegroundColor DarkYellow
+    }
 
     Write-Host ''
 }

@@ -34,8 +34,13 @@ function Compare-RiDFiles {
     function _EnumerateFiles([string]$root) {
         if (-not (Test-Path -LiteralPath $root)) { return @{} }
         $map = @{}
+        # Resolve to an absolute path so relative paths can be derived by
+        # prefix-stripping ([IO.Path]::GetRelativePath is not in PS 5.1).
+        $rootFull = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $root).ProviderPath)
+        $rootFull = $rootFull.TrimEnd([char]'\', [char]'/') + [IO.Path]::DirectorySeparatorChar
         Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object {
-            $rel = [IO.Path]::GetRelativePath($root, $_.FullName)
+            $full = $_.FullName
+            $rel = if ($full.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)) { $full.Substring($rootFull.Length) } else { $full }
             $rel = $rel -replace '\\','/'
             if (_ShouldExclude $rel) { return }
             $map[$rel] = [pscustomobject]@{

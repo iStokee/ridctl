@@ -5,10 +5,12 @@ function New-RiDVM {
         user‑specified parameters.
 
     .DESCRIPTION
-        Detects available VMware tooling (vmcli preferred, then vmrun) and
-        either performs a fresh VM creation (vmcli) or clones from a template
-        snapshot (vmrun). Supports dry-run via -WhatIf and prompt/confirm via
-        -Confirm. Optionally attaches an ISO and edits CPU/Memory in the VMX.
+        Creates a VMware Workstation VM. Preferred path is cloning from a
+        template snapshot via vmrun (fast, produces a ready-to-boot guest);
+        when no template is configured it falls back to a fresh "vanilla"
+        VM (Windows 11-ready VMX + VMDK via vmware-vdiskmanager) that boots
+        the installer ISO. Supports dry-run via -WhatIf and prompt/confirm
+        via -Confirm. Optionally attaches an ISO and edits CPU/Memory.
 
     .PARAMETER Name
         The name of the new virtual machine.
@@ -44,8 +46,7 @@ function New-RiDVM {
         [Parameter()] [int]$MemoryMB = 4096,
         [Parameter()] [int]$DiskGB = 60,
         [Parameter()] [string]$IsoPath,
-        [Parameter()] [string]$SwitchName,
-        [Parameter()] [ValidateSet('auto','vmcli','vmrest','vmrun')][string]$Method = 'auto',
+        [Parameter()] [ValidateSet('auto','clone','vanilla','vmrun','vmcli','vmrest')][string]$Method = 'auto',
         [Parameter()] [string]$TemplateVmx,
         [Parameter()] [string]$TemplateSnapshot
     )
@@ -82,100 +83,56 @@ function New-RiDVM {
         return $null
     }
 
-    # Provider routing: if Hyper-V selected, use Hyper-V creation path
-    $cfg = Get-RiDConfig
-    $provider = Get-RiDProviderPreference -Config $cfg
-    if ($provider -eq 'hyperv') {
-        if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
-        $vhdPath = Join-Path -Path $DestinationPath -ChildPath ("{0}.vhdx" -f $Name)
-        $apply = $PSCmdlet.ShouldProcess($Name, 'Create Hyper-V VM')
-        New-RiDHvVM -Name $Name -MemoryGB ([int]([math]::Ceiling($MemoryMB/1024.0))) -CpuCount $CpuCount -Generation 2 -VhdPath $vhdPath -DiskGB $DiskGB -IsoPath $IsoPath -SwitchName $SwitchName -Path $DestinationPath -WhatIf:(!$apply) | Out-Null
-        if ($apply) {
-            try { Register-RiDVM -Name $Name -Provider hyperv | Out-Null } catch { Write-Verbose $_ }
-            Write-Host 'Hyper-V VM created. You can start it via Start-RiDVM -Name ...' -ForegroundColor Yellow
-        } else {
-            Write-Host 'Planned Hyper-V VM creation printed (dry-run).' -ForegroundColor Yellow
-        }
-        return
+    # Legacy method values from older configs map to auto routing
+    if ($Method -in @('vmcli','vmrest')) {
+        Write-Warning ("Method '{0}' is no longer supported; using automatic routing (clone when a template is configured, else vanilla)." -f $Method)
+        $Method = 'auto'
     }
+    if ($Method -eq 'vmrun') { $Method = 'clone' }
 
-    # Determine available VMware command line tools
-    $tools = Get-RiDVmTools
+    # Resolve template/snapshot from params or config
+    $cfg = Get-RiDConfig
+    if (-not $TemplateVmx -and $cfg['Templates'] -and $cfg['Templates']['DefaultVmx']) { $TemplateVmx = [string]$cfg['Templates']['DefaultVmx'] }
+    if (-not $TemplateSnapshot -and $cfg['Templates'] -and $cfg['Templates']['DefaultSnapshot']) { $TemplateSnapshot = [string]$cfg['Templates']['DefaultSnapshot'] }
+    $haveTemplate = ($TemplateVmx -and (Test-Path -Path $TemplateVmx))
+
     $selectedMethod = $Method
     if ($Method -eq 'auto') {
-        if ($tools.VmCliPath)      { $selectedMethod = 'vmcli' }
-        elseif ($tools.VmrunPath)  { $selectedMethod = 'vmrun' }
-        else                       { $selectedMethod = 'none' }
+        $selectedMethod = if ($haveTemplate) { 'clone' } else { 'vanilla' }
     }
+
+    $destVmx = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
+
     switch ($selectedMethod) {
-        'vmcli' {
-            if (-not $tools.VmCliPath) {
-                Write-Warning 'vmcli was selected but could not be found on this system.'
-                return
-            }
-            $target = (Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx"))
-            $apply = $PSCmdlet.ShouldProcess($target, "Create new VM via vmcli")
-            $vmx = New-RiDVmCliVM -VmCliPath $tools.VmCliPath -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -Apply:$apply
-            if ($apply -and $vmx) {
-                try { Register-RiDVM -Name $Name -VmxPath $vmx | Out-Null } catch { Write-Error $_ }
-                Write-Host 'Next steps:' -ForegroundColor Green
-                Write-Host '  - Power on the VM and complete Windows OOBE.' -ForegroundColor DarkGray
-                Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray
-            }
-        }
-        'vmrun' {
+        'clone' {
+            $tools = Get-RiDVmTools
             if (-not $tools.VmrunPath) {
-                Write-Warning 'vmrun was selected but could not be found on this system.'
+                Write-Warning 'vmrun not found. Install VMware Workstation or set Vmware.vmrunPath in config.'
                 return
             }
-            # Resolve template/snapshot from params, config or prompts
-            if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) {
-                $cfg = Get-RiDConfig
-                if (-not $TemplateVmx -and $cfg['Templates'] -and $cfg['Templates']['DefaultVmx']) { $TemplateVmx = $cfg['Templates']['DefaultVmx'] }
+            if (-not $haveTemplate) {
+                Write-Warning 'No template VMX configured (Templates.DefaultVmx) or passed via -TemplateVmx. Build a golden image first (see docs), or use -Method vanilla for a fresh VM.'
+                return
             }
             if (-not $TemplateSnapshot) {
-                $cfg = Get-RiDConfig
-                if ($cfg['Templates'] -and $cfg['Templates']['DefaultSnapshot']) { $TemplateSnapshot = $cfg['Templates']['DefaultSnapshot'] }
+                Write-Warning 'No template snapshot configured (Templates.DefaultSnapshot) or passed via -TemplateSnapshot. Take a snapshot of the golden image and set its name in config.'
+                return
             }
-            if (-not $TemplateVmx -or -not (Test-Path -Path $TemplateVmx)) {
-                Write-Host 'No template VMX found in config or input.' -ForegroundColor Yellow
-                $useVanilla = Read-Host 'Create a fresh VM without a template instead? [Y/n]'
-                if ($useVanilla -notmatch '^[Nn]') {
-                    if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
-                    $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
-                    $apply = $PSCmdlet.ShouldProcess($destVmx, 'Create vanilla VMware VM')
-                    $vmx = New-RiDVmVanilla -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -WhatIf:(!$apply)
-                    if ($apply -and $vmx) {
-                        try { Register-RiDVM -Name $Name -VmxPath $vmx | Out-Null } catch { Write-Error $_ }
-                        Write-Host 'Vanilla VM created and registered.' -ForegroundColor Green
-                    } else {
-                        Write-Host 'Planned vanilla VM creation (dry-run).' -ForegroundColor Yellow
-                    }
-                    return
-                }
-                $TemplateVmx = Read-Host 'Enter the path to the template VMX file'
-            }
-            if (-not $TemplateSnapshot) { $TemplateSnapshot = Read-Host 'Enter the snapshot name in the template to clone from' }
 
-            # Destination
-            $destVmx  = Join-Path -Path $DestinationPath -ChildPath ("${Name}.vmx")
-
-            # Confirm action and clone
             $apply = $PSCmdlet.ShouldProcess($destVmx, "Clone VM from template via vmrun")
             Clone-RiDVmrunTemplate -VmrunPath $tools.VmrunPath -TemplateVmx $TemplateVmx -SnapshotName $TemplateSnapshot -DestinationVmx $destVmx -Apply:$apply | Out-Null
 
-            # VMX edits (CPU/Mem + optional ISO)
+            # VMX edits (CPU/Mem + optional ISO; clones normally need no ISO)
             $vmxSettings = @{
                 'numvcpus' = $CpuCount
                 'memsize'  = $MemoryMB
             }
-            if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
             if ($IsoPath) {
-                $vmxSettings['ide1:0.present']        = 'TRUE'
-                $vmxSettings['ide1:0.fileName']       = $IsoPath
-                $vmxSettings['ide1:0.deviceType']     = 'cdrom-image'
-                $vmxSettings['ide1:0.startConnected'] = 'TRUE'
-                $vmxSettings['ide1:0.autodetect']     = 'FALSE'
+                $vmxSettings['sata0.present']          = 'TRUE'
+                $vmxSettings['sata0:1.present']        = 'TRUE'
+                $vmxSettings['sata0:1.fileName']       = $IsoPath
+                $vmxSettings['sata0:1.deviceType']     = 'cdrom-image'
+                $vmxSettings['sata0:1.startConnected'] = 'TRUE'
             }
             # VMX edit: if dry-run and VMX doesn't exist yet, print the intended settings
             if ($apply -or (Test-Path -Path $destVmx)) {
@@ -187,22 +144,29 @@ function New-RiDVM {
                 }
             }
 
-            $isoText = if ($IsoPath) { ' + ISO' } else { '' }
             if ($apply) {
-                Write-Host ("VM clone completed and VMX updated with CPU/Mem{0}." -f $isoText) -ForegroundColor Yellow
+                Write-Host 'VM clone completed and VMX updated.' -ForegroundColor Yellow
                 try { Register-RiDVM -Name $Name -VmxPath $destVmx | Out-Null } catch { Write-Error $_ }
                 Write-Host 'Next steps:' -ForegroundColor Green
-                Write-Host '  - Power on the VM and complete Windows OOBE.' -ForegroundColor DarkGray
-                Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray
+                Write-Host '  - Power on the VM: Start-RiDVM -Name ' -NoNewline -ForegroundColor DarkGray; Write-Host $Name -ForegroundColor DarkGray
             } else {
-                Write-Host ("Planned clone and VMX updates printed (dry-run){0}." -f $isoText) -ForegroundColor Yellow
+                Write-Host 'Planned clone and VMX updates printed (dry-run).' -ForegroundColor Yellow
             }
         }
-        'none' {
-            Write-Warning 'No supported VMware command line tools were detected. Please install vmcli or vmrun.'
-        }
-        default {
-            Write-Warning "Method '$Method' is not supported in this scaffold."
+        'vanilla' {
+            if (-not $IsoPath) { $IsoPath = _PromptForIsoIfMissing $IsoPath }
+            $apply = $PSCmdlet.ShouldProcess($destVmx, 'Create vanilla VMware VM')
+            $vmx = if ($apply) { New-RiDVmVanilla -Name $Name -DestinationPath $DestinationPath -CpuCount $CpuCount -MemoryMB $MemoryMB -DiskGB $DiskGB -IsoPath $IsoPath -Confirm:$false } else { $null }
+            if ($apply -and $vmx) {
+                try { Register-RiDVM -Name $Name -VmxPath $vmx | Out-Null } catch { Write-Error $_ }
+                Write-Host 'Vanilla VM created and registered.' -ForegroundColor Green
+                Write-Host 'Next steps:' -ForegroundColor Green
+                Write-Host '  - Power on the VM and complete Windows setup/OOBE.' -ForegroundColor DarkGray
+                Write-Host '  - Inside the guest, run: Import-Module ./src -Force; Open-RiDGuestHelper' -ForegroundColor DarkGray
+                Write-Host '  - When the guest is fully prepared, snapshot it and set Templates.DefaultVmx/DefaultSnapshot to clone from it next time.' -ForegroundColor DarkGray
+            } else {
+                Write-Host 'Planned vanilla VM creation (dry-run).' -ForegroundColor Yellow
+            }
         }
     }
 }

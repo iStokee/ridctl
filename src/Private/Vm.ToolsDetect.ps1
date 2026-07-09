@@ -1,13 +1,11 @@
 <#
-    Detects the presence of VMware command line tools (vmcli, vmrun,
-    vmrest).  These functions will be used by New-RiDVM and other
-    operations to select the appropriate management interface.
+    Detects the presence of the VMware vmrun command line tool, used by
+    New-RiDVM and the start/stop/snapshot operations.
 #>
 function Get-RiDVmTools {
     [CmdletBinding()] param()
-    # Attempt to locate vmcli/vmrun using Get-Command. Also search common
-    # installation paths as a fallback on Windows hosts.
-    $vmcli = $null
+    # Config override first, then PATH, then the registry install path,
+    # then common installation directories.
     $vmrun = $null
     try {
         $cfg = Get-RiDConfig
@@ -17,29 +15,31 @@ function Get-RiDVmTools {
         }
     } catch { }
     try {
-        $vmcliCmd = Get-Command -Name vmcli, vmcli.exe -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($vmcliCmd) { $vmcli = $vmcliCmd.Source }
-    } catch {}
-    try {
         if (-not $vmrun) {
             $vmrunCmd = Get-Command -Name vmrun, vmrun.exe -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($vmrunCmd) { $vmrun = $vmrunCmd.Source }
         }
     } catch {}
-    # Fallback search for vmrun in default installation directories if not found
+    if (-not $vmrun) {
+        try {
+            $wk = Get-RiDWorkstationInfo
+            if ($wk -and $wk.InstallPath) {
+                $probe = Join-Path -Path $wk.InstallPath -ChildPath 'vmrun.exe'
+                if (Test-Path -LiteralPath $probe) { $vmrun = $probe }
+            }
+        } catch { }
+    }
     if (-not $vmrun) {
         $possible = @(
-            'C:\\Program Files\\VMware\\VMware Workstation\\vmrun.exe',
-            'C:\\Program Files (x86)\\VMware\\VMware Workstation\\vmrun.exe'
+            'C:\Program Files\VMware\VMware Workstation\vmrun.exe',
+            'C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe'
         )
         foreach ($p in $possible) {
             if (Test-Path -LiteralPath $p) { $vmrun = $p; break }
         }
     }
     [pscustomobject]@{
-        VmCliPath  = $vmcli
-        VmrunPath  = $vmrun
-        VmrestPath = $null
+        VmrunPath = $vmrun
     }
 }
 

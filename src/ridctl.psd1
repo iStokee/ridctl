@@ -44,8 +44,9 @@
         'Test-RiDSharedFolder',
         'Register-RiDVM',
         'Get-RiDVM',
-        'Unregister-RiDVM'
-        ,'Reset-RiDConfig'
+        'Unregister-RiDVM',
+        'Reset-RiDConfig',
+        'Optimize-RiDGuest'
     )
 
     # Cmdlets to export from this module

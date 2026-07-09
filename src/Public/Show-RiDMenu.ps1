@@ -123,7 +123,7 @@ function Show-RiDMenu {
             $ans = Read-Host ("Default Disk GB [{0}]" -f $curDisk)
             if ($ans) { $cfg['VmDefaults']['DiskGB'] = $ans } elseif (-not $cfg['VmDefaults']['DiskGB']) { $cfg['VmDefaults']['DiskGB'] = $curDisk }
             $curMeth = if (_S $cfg['VmDefaults']['Method']) { _S $cfg['VmDefaults']['Method'] } else { 'auto' }
-            $ans = Read-Host ("Default method [auto/vmcli/vmrun] [{0}]" -f $curMeth)
+            $ans = Read-Host ("Default method [auto/clone/vanilla] [{0}]" -f $curMeth)
             if ($ans) { $cfg['VmDefaults']['Method'] = $ans } elseif (-not $cfg['VmDefaults']['Method']) { $cfg['VmDefaults']['Method'] = $curMeth }
 
             if (-not $cfg['State']) { $cfg['State'] = @{} }
@@ -204,7 +204,7 @@ function Show-RiDMenu {
                 Write-Host (" 14) DiskGB              = {0}" -f (_S $cfg['VmDefaults']['DiskGB']))
                 Write-Host (" 15) Method              = {0}" -f (_S $cfg['VmDefaults']['Method']))
                 Write-Host '[Hypervisor]' -ForegroundColor Cyan
-                Write-Host (" 16) Type                = {0}" -f (if ($cfg['Hypervisor']['Type']) { _S $cfg['Hypervisor']['Type'] } else { 'vmware' }))
+                Write-Host '     Type                = vmware (Hyper-V support is parked)'
                 Write-Host ''
                 Write-Host '  S) Save   R) Reload   P) Paths   W) First-run Wizard   D) Reset Config   X) Back'
                 $sel = Read-Host 'Select an option'
@@ -223,12 +223,7 @@ function Show-RiDMenu {
                     '12' { $v = Read-Host 'Set VmDefaults.CpuCount';        if ($v) { $cfg['VmDefaults']['CpuCount'] = $v } }
                     '13' { $v = Read-Host 'Set VmDefaults.MemoryMB';        if ($v) { $cfg['VmDefaults']['MemoryMB'] = $v } }
                     '14' { $v = Read-Host 'Set VmDefaults.DiskGB';          if ($v) { $cfg['VmDefaults']['DiskGB'] = $v } }
-                    '15' { $v = Read-Host 'Set VmDefaults.Method (auto/vmcli/vmrun)'; if ($v) { $cfg['VmDefaults']['Method'] = $v } }
-                    '16' {
-                        $cur = if ($cfg['Hypervisor']['Type']) { [string]$cfg['Hypervisor']['Type'] } else { 'vmware' }
-                        $v = Read-Host ("Set Hypervisor.Type [vmware/hyperv/auto] [{0}]" -f $cur)
-                        if ($v) { $cfg['Hypervisor']['Type'] = $v }
-                    }
+                    '15' { $v = Read-Host 'Set VmDefaults.Method (auto/clone/vanilla)'; if ($v) { $cfg['VmDefaults']['Method'] = $v } }
                     'S'  { try { Set-RiDConfig -Config $cfg; Write-Host 'Configuration saved.' -ForegroundColor Cyan } catch { Write-Error $_ }; _Pause }
                     'R'  { $cfg = Initialize-RiDConfig; if (-not $cfg['Iso']) { $cfg['Iso'] = @{} }; if (-not $cfg['Templates']) { $cfg['Templates'] = @{} }; if (-not $cfg['Share']) { $cfg['Share'] = @{} }; if (-not $cfg['Vmware']) { $cfg['Vmware'] = @{} }; if (-not $cfg['VmDefaults']) { $cfg['VmDefaults'] = @{} }; if (-not $cfg['Hypervisor']) { $cfg['Hypervisor'] = @{} } }
                     'P'  {
@@ -296,15 +291,21 @@ function Show-RiDMenu {
 
         $isVm = Get-RiDHostGuestInfo
         if (-not $isVm) {
-            Write-Host 'Select an action (Host):' -ForegroundColor Green
-            Write-Host '  1) Create new VM'
-            Write-Host '  2) ISO Helper'
-            Write-Host '  3) Registered VMs'
-            Write-Host '  4) Shared Folder: Provision/Repair'
-            Write-Host '  5) Sync Scripts'
-            Write-Host '  6) Status & Checklist'
-            Write-Host '  7) Options'
-            Write-Host '  X) Exit'
+            Write-Host '  Select an action (Host):' -ForegroundColor Green
+            function _MenuItem([string]$Key, [string]$Label, [string]$Hint) {
+                Write-Host ('    {0}) ' -f $Key) -ForegroundColor Cyan -NoNewline
+                Write-Host ('{0,-24}' -f $Label) -NoNewline
+                if ($Hint) { Write-Host $Hint -ForegroundColor DarkGray -NoNewline }
+                Write-Host ''
+            }
+            _MenuItem '1' 'Create new VM'      'clone from template, or fresh Windows 11 install'
+            _MenuItem '2' 'ISO Helper'         'download or select a Windows ISO'
+            _MenuItem '3' 'Registered VMs'     'start / stop / snapshot'
+            _MenuItem '4' 'Shared Folder'      'provision or repair the host<->guest share'
+            _MenuItem '5' 'Sync Scripts'       'sync local scripts with the share'
+            _MenuItem '6' 'Status & Checklist' 'detailed environment report'
+            _MenuItem '7' 'Options'            'defaults, template, paths'
+            _MenuItem 'X' 'Exit'
             $choice = Read-Host 'Select an option'
             switch ($choice.ToUpper()) {
                 '1' {
@@ -329,7 +330,7 @@ function Show-RiDMenu {
                         $disk = Read-Host ("Disk GB [{0}]" -f $defDis)
                         if (-not $disk) { $disk = $defDis }
                         $defMethod = if ($cfg['VmDefaults']['Method']) { [string]$cfg['VmDefaults']['Method'] } else { 'auto' }
-                        $method = Read-Host ("Method [auto/vmcli/vmrun] [{0}]" -f $defMethod)
+                        $method = Read-Host ("Method [auto/clone/vanilla] [{0}]" -f $defMethod)
                         if (-not $method) { $method = $defMethod }
                         $iso  = Read-Host 'ISO path (leave blank to use helper)'
                         if (-not $iso) {
@@ -398,24 +399,13 @@ function Show-RiDMenu {
                         if (-not $vms -or $vms.Count -eq 0) {
                             Write-Host 'No VMs registered yet.' -ForegroundColor Yellow
                             if (Read-RiDYesNo -Prompt 'Register an existing VM now?' -Default Yes) {
-                                $defProv = try { (Get-RiDProviderPreference) } catch { 'vmware' }
-                                $prov = Read-Host ("Provider [vmware/hyperv] [{0}]" -f $defProv)
-                                if (-not $prov) { $prov = $defProv }
                                 $nm = Read-Host 'Friendly name'
-                                if ($prov -eq 'hyperv') {
-                                    try {
-                                        Register-RiDVM -Name $nm -Provider hyperv
-                                        $count = (Get-RiDVM | Measure-Object).Count
-                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
-                                    } catch { Write-Error $_ }
-                                } else {
-                                    $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
-                                    try { 
-                                        Register-RiDVM -Name $nm -VmxPath $vx -Provider vmware
-                                        $count = (Get-RiDVM | Measure-Object).Count
-                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
-                                    } catch { Write-Error $_ }
-                                }
+                                $vx = Read-Host 'Path to VMX file (e.g., C:\VMs\MyVM\MyVM.vmx)'
+                                try {
+                                    Register-RiDVM -Name $nm -VmxPath $vx -Provider vmware
+                                    $count = (Get-RiDVM | Measure-Object).Count
+                                    Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
+                                } catch { Write-Error $_ }
                             }
                         } else {
                             Write-Host 'Registered VMs:' -ForegroundColor Green
@@ -458,24 +448,13 @@ function Show-RiDMenu {
                                     }
                                 }
                             } elseif ($sel.ToLower() -eq 'r') {
-                                $defProv = try { (Get-RiDProviderPreference) } catch { 'vmware' }
-                                $prov = Read-Host ("Provider [vmware/hyperv] [{0}]" -f $defProv)
-                                if (-not $prov) { $prov = $defProv }
                                 $nm = Read-Host 'Friendly name'
-                                if ($prov -eq 'hyperv') {
-                                    try { 
-                                        Register-RiDVM -Name $nm -Provider hyperv
-                                        $count = (Get-RiDVM | Measure-Object).Count
-                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
-                                    } catch { Write-Error $_ }
-                                } else {
-                                    $vx = Read-Host 'Path to VMX file (e.g., C:\\VMs\\MyVM\\MyVM.vmx)'
-                                    try { 
-                                        Register-RiDVM -Name $nm -VmxPath $vx -Provider vmware
-                                        $count = (Get-RiDVM | Measure-Object).Count
-                                        Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
-                                    } catch { Write-Error $_ }
-                                }
+                                $vx = Read-Host 'Path to VMX file (e.g., C:\VMs\MyVM\MyVM.vmx)'
+                                try {
+                                    Register-RiDVM -Name $nm -VmxPath $vx -Provider vmware
+                                    $count = (Get-RiDVM | Measure-Object).Count
+                                    Write-Host ("Registered. Now {0} VM(s) saved." -f $count) -ForegroundColor Cyan
+                                } catch { Write-Error $_ }
                             } elseif ($sel.ToLower() -eq 'u') {
                                 $nm = Read-Host 'Name to unregister'
                                 try { 
@@ -494,11 +473,18 @@ function Show-RiDMenu {
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }
         } else {
-            Write-Host 'Select an action (Guest VM):' -ForegroundColor Green
-            Write-Host '  1) Guest software helper (7-Zip, Java, RiD, RuneScape)'
-            Write-Host '  2) Sync scripts'
-            Write-Host '  3) Status & Checklist'
-            Write-Host '  X) Exit'
+            Write-Host '  Select an action (Guest VM):' -ForegroundColor Green
+            function _MenuItem([string]$Key, [string]$Label, [string]$Hint) {
+                Write-Host ('    {0}) ' -f $Key) -ForegroundColor Cyan -NoNewline
+                Write-Host ('{0,-24}' -f $Label) -NoNewline
+                if ($Hint) { Write-Host $Hint -ForegroundColor DarkGray -NoNewline }
+                Write-Host ''
+            }
+            _MenuItem '1' 'Guest software helper' '7-Zip, Java, RiD, RuneScape'
+            _MenuItem '2' 'Sync scripts'          'sync scripts via the shared folder'
+            _MenuItem '3' 'Status & Checklist'    'detailed environment report'
+            _MenuItem '4' 'Debloat guest'         'strip Store apps + tweaks; golden-image prep'
+            _MenuItem 'X' 'Exit'
             $choice = Read-Host 'Select an option'
             switch ($choice.ToUpper()) {
                 '1' {
@@ -508,13 +494,6 @@ function Show-RiDMenu {
                 '2' {
                     try {
                         $dir = Read-Host 'Direction: FromShare (F), ToShare (T) or Bidirectional (B) [B]'
-                        $prov = try { (Get-RiDProviderPreference) } catch { '' }
-                        if ($prov -eq 'hyperv' -and (!$dir -or $dir.ToUpper() -eq 'B')) {
-                            Write-Host 'For two-way sync on Hyper-V, map an SMB share or use Enhanced Session Mode.' -ForegroundColor Yellow
-                            Write-Host 'Tip: net use Z: \\\\\\<host>\\share /USER:<user>' -ForegroundColor DarkGray
-                            _Pause
-                            break
-                        }
                         $isDry = -not (Read-RiDYesNo -Prompt 'Apply changes?' -Default No)
                         switch ($dir.ToUpper()) {
                             'F' { Sync-RiDScripts -FromShare -DryRun:$isDry }
@@ -525,6 +504,13 @@ function Show-RiDMenu {
                     _Pause
                 }
                 '3' { try { Show-RiDChecklist } catch { Write-Error $_ }; _Pause }
+                '4' {
+                    try {
+                        Optimize-RiDGuest -WhatIf
+                        if (Read-RiDYesNo -Prompt 'Apply debloat now?' -Default No) { Optimize-RiDGuest -Confirm:$false }
+                    } catch { Write-Error $_ }
+                    _Pause
+                }
                 'X' { return }
                 default { Write-Host 'Invalid selection.' -ForegroundColor Yellow; _Pause }
             }
