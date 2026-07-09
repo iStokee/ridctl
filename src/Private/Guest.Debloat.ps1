@@ -54,6 +54,24 @@ function Get-RiDDebloatAppxTargets {
         'MSTeams'
         'Clipchamp.Clipchamp'
         'Microsoft.GamingApp'                 # Xbox app (Win11)
+        # Third-party sponsored/preinstalled apps (Win11Debloat defaults).
+        # Harmless if absent; often present on OEM or consumer images.
+        '7EE7776C.LinkedInforWindows'
+        'SpotifyAB.SpotifyMusic'
+        'BytedancePte.Ltd.TikTok'
+        'Facebook.Facebook'
+        'Facebook.InstagramBeta'
+        'Facebook.Instagram'
+        '4DF9E0F8.Netflix'
+        'Disney.37853FC22B2CE'                # Disney+
+        'AmazonVideo.PrimeVideo'
+        'king.com.CandyCrushSaga'
+        'king.com.CandyCrushSodaSaga'
+        'king.com.BubbleWitch3Saga'
+        '5A894077.McAfeeSecurity'
+        '26720RandomSaladGamesLLC.HeartsDeluxe'
+        'A278AB0D.MarchofEmpires'
+        'A278AB0D.DisneyMagicKingdoms'
     )
 }
 
@@ -88,6 +106,16 @@ function Get-RiDDebloatRegistryTweaks {
            Description='Disable lock screen tips/ads' }
         @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name='SystemPaneSuggestionsEnabled'; Value=0; Type='DWord'
            Description='Disable Start menu app suggestions' }
+        @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name='SilentInstalledAppsEnabled'; Value=0; Type='DWord'
+           Description='Stop silent auto-install of sponsored apps (LinkedIn, Spotify, etc.)' }
+        @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name='PreInstalledAppsEnabled'; Value=0; Type='DWord'
+           Description='Disable preinstalled sponsored apps' }
+        @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name='PreInstalledAppsEverEnabled'; Value=0; Type='DWord'
+           Description='Disable preinstalled sponsored apps (permanent flag)' }
+        @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name='OemPreInstalledAppsEnabled'; Value=0; Type='DWord'
+           Description='Disable OEM preinstalled app promotions' }
+        @{ Path='HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name='SubscribedContent-338388Enabled'; Value=0; Type='DWord'
+           Description='Disable Start menu sponsored app suggestions' }
         @{ Path='HKCU:\System\GameConfigStore'; Name='GameDVR_Enabled'; Value=0; Type='DWord'
            Description='Disable Game Bar capture for current user' }
         @{ Path='HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power'; Name='HiberbootEnabled'; Value=0; Type='DWord'
